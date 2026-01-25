@@ -1,0 +1,94 @@
+import { motion } from "framer-motion";
+import { TrendingUp, TrendingDown, MoreHorizontal } from "lucide-react";
+
+interface Trade {
+  id: string;
+  date: string;
+  instrument: string;
+  direction: "long" | "short";
+  result: "win" | "loss" | "breakeven";
+  rMultiple: number;
+  strategy: string;
+  cyclePhase: string;
+}
+
+interface RecentTradesTableProps {
+  trades: Trade[];
+}
+
+export function RecentTradesTable({ trades }: RecentTradesTableProps) {
+  const getResultStyles = (result: Trade["result"]) => {
+    switch (result) {
+      case "win":
+        return "bg-accent/50 text-accent-foreground";
+      case "loss":
+        return "bg-destructive/10 text-destructive";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl bg-card p-5 shadow-card"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="font-serif text-lg font-semibold text-foreground">Recent Trades</h3>
+        <button className="text-muted-foreground hover:text-foreground">
+          <MoreHorizontal className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <th className="pb-3">Date</th>
+              <th className="pb-3">Instrument</th>
+              <th className="pb-3">Dir.</th>
+              <th className="pb-3">Result</th>
+              <th className="pb-3">R</th>
+              <th className="pb-3 hidden sm:table-cell">Phase</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((trade, index) => (
+              <motion.tr
+                key={trade.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="border-b border-border/50 last:border-0"
+              >
+                <td className="py-3 text-sm text-foreground">{trade.date}</td>
+                <td className="py-3 text-sm font-medium text-foreground">{trade.instrument}</td>
+                <td className="py-3">
+                  {trade.direction === "long" ? (
+                    <TrendingUp className="h-4 w-4 text-accent-foreground" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-destructive" />
+                  )}
+                </td>
+                <td className="py-3">
+                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${getResultStyles(trade.result)}`}>
+                    {trade.result}
+                  </span>
+                </td>
+                <td className={`py-3 text-sm font-semibold ${
+                  trade.rMultiple > 0 ? "text-accent-foreground" : trade.rMultiple < 0 ? "text-destructive" : "text-muted-foreground"
+                }`}>
+                  {trade.rMultiple > 0 ? "+" : ""}{trade.rMultiple}R
+                </td>
+                <td className="py-3 hidden sm:table-cell">
+                  <span className="text-xs text-muted-foreground">{trade.cyclePhase}</span>
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </motion.div>
+  );
+}
