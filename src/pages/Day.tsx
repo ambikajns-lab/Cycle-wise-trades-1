@@ -1,14 +1,51 @@
 import { useParams, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { RecentTradesTable } from "@/components/RecentTradesTable";
 import { CyclePhaseIndicator } from "@/components/CyclePhaseIndicator";
+import { Button } from "@/components/ui/button";
 
 export default function Day() {
   const { day } = useParams<{ day: string }>();
-  const dayNum = Number(day || 1);
 
-  // Simple phase calculation matching CycleTracker logic
+  // Support both numeric day (e.g., '24') and ISO date (YYYY-MM-DD)
+  const parseDate = (d?: string) => {
+    if (!d) return new Date(2025, 0, 1);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return new Date(d);
+    const n = Number(d);
+    return new Date(2025, 0, isNaN(n) ? 1 : n);
+  };
+
+  const dateObj = parseDate(day);
+  const dayNum = dateObj.getDate();
+
+  // Simple phase calculation matching CycleTracker logic (using day number)
   const phase = dayNum <= 5 ? "menstruation" : dayNum <= 12 ? "follicular" : dayNum <= 16 ? "ovulation" : "luteal";
+
+  const isoDate = dateObj.toISOString().slice(0, 10);
+
+  const [lastPeriodStart, setLastPeriodStart] = useState<string | null>(null);
+  const [periodDays, setPeriodDays] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const l = localStorage.getItem('cw_lastPeriodStart');
+      const pd = localStorage.getItem('cw_periodDays');
+      if (l) setLastPeriodStart(l || null);
+      if (pd) setPeriodDays(JSON.parse(pd));
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const save = () => {
+    try {
+      if (lastPeriodStart) localStorage.setItem('cw_lastPeriodStart', lastPeriodStart);
+      localStorage.setItem('cw_periodDays', JSON.stringify(periodDays || []));
+    } catch (e) {
+      // ignore
+    }
+  };
 
   // Mock trades (small sample); in future replace with real data
   const mockTrades = [
@@ -56,6 +93,21 @@ export default function Day() {
             <div className="rounded-2xl bg-card p-6">
               <h3 className="font-semibold text-foreground">Quick Actions</h3>
               <p className="mt-2 text-sm text-muted-foreground">Log a trade or add a note for {dayLabel}.</p>
+
+              <div className="mt-4">
+                <Button
+                  onClick={() => {
+                    if (periodDays.includes(isoDate)) {
+                      setPeriodDays(periodDays.filter(d => d !== isoDate));
+                    } else {
+                      setPeriodDays([...periodDays, isoDate]);
+                    }
+                    save();
+                  }}
+                >
+                  {periodDays.includes(isoDate) ? 'Unmark Period Day' : 'Mark Period Day'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
