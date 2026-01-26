@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { RecentTradesTable } from "@/components/RecentTradesTable";
@@ -31,6 +31,7 @@ export default function Day() {
   const [lastPeriodStart, setLastPeriodStart] = useState<string | null>(null);
   const [periodDays, setPeriodDays] = useState<string[]>([]);
   const [journalOpen, setJournalOpen] = useState(false);
+  const location = useLocation();
 
   type TradeEntry = {
     id: string;
@@ -74,6 +75,15 @@ export default function Day() {
       setJournal({ quickNote: "", trades: [], mood: 5, confidence: 5, lessons: "", attachments: [] });
     }
   }, [isoDate]);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.get("journal") === "1") setJournalOpen(true);
+    } catch (e) {
+      // ignore
+    }
+  }, [location.search]);
 
   const saveJournal = (next?: Partial<Journal>) => {
     const newJ = { ...journal, ...next };

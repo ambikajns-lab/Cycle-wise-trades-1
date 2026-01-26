@@ -32,8 +32,8 @@ const cyclePhases = [
 ];
 
 // Calendar data generator using settings
-const generateCalendarData = (year: number, monthIndex: number, avgCycleLength: number, lastPeriodStartIso: string) => {
-  const days: Array<any> = [];
+const generateCalendarData = (year: number, monthIndex: number, avgCycleLength: number, lastPeriodStartIso: string, periodLength: number): DayData[] => {
+  const days: DayData[] = [];
   const msPerDay = 1000 * 60 * 60 * 24;
 
   // parse last period start
@@ -52,7 +52,9 @@ const generateCalendarData = (year: number, monthIndex: number, avgCycleLength: 
       cycleDay = (((diff % avgCycleLength) + avgCycleLength) % avgCycleLength) + 1;
     }
 
-    const phase = cycleDay <= 5 ? "menstruation" : cycleDay <= 12 ? "follicular" : cycleDay <= 16 ? "ovulation" : "luteal";
+    const follicularEnd = Math.min(periodLength + 7, avgCycleLength);
+    const ovulationEnd = Math.min(periodLength + 11, avgCycleLength);
+    const phase = cycleDay <= periodLength ? "menstruation" : cycleDay <= follicularEnd ? "follicular" : cycleDay <= ovulationEnd ? "ovulation" : "luteal";
 
     const trades = i === 8 ? 2 : i === 15 ? 1 : i === 22 ? 3 : 0;
     const pnl = trades > 0 ? Math.round((Math.random() - 0.3) * 800) : 0;
@@ -81,6 +83,8 @@ export default function CycleTracker() {
   const [lastPeriodStart, setLastPeriodStart] = useState<string>("2025-01-17");
   const [pmsDays, setPmsDays] = useState<number>(3);
   const [variationDays, setVariationDays] = useState<number>(2);
+  const [periodLength, setPeriodLength] = useState<number>(5);
+  const [periodDays, setPeriodDays] = useState<string[]>([]);
   const [isDirty, setIsDirty] = useState<boolean>(false);
 
   // load saved settings from localStorage on mount
@@ -90,10 +94,16 @@ export default function CycleTracker() {
       const l = localStorage.getItem('cw_lastPeriodStart');
       const p = localStorage.getItem('cw_pmsDays');
       const v = localStorage.getItem('cw_variationDays');
+      const per = localStorage.getItem('cw_periodLength');
+    const pd = localStorage.getItem('cw_periodDays');
       if (a) setAvgCycleLength(Number(a));
       if (l) setLastPeriodStart(l);
       if (p) setPmsDays(Number(p));
       if (v) setVariationDays(Number(v));
+      if (per) setPeriodLength(Number(per));
+      if (pd) {
+        try { setPeriodDays(JSON.parse(pd)); } catch { setPeriodDays([]); }
+      }
     } catch (e) {
       // ignore storage errors
     }
@@ -105,6 +115,8 @@ export default function CycleTracker() {
       localStorage.setItem('cw_lastPeriodStart', lastPeriodStart);
       localStorage.setItem('cw_pmsDays', String(pmsDays));
       localStorage.setItem('cw_variationDays', String(variationDays));
+      localStorage.setItem('cw_periodLength', String(periodLength));
+      localStorage.setItem('cw_periodDays', JSON.stringify(periodDays));
     } catch (e) {
       // ignore
     }
@@ -119,8 +131,8 @@ export default function CycleTracker() {
   const calendarMonthIndex = displayedDate.getMonth();
   const currentMonthLabel = `${monthNames[calendarMonthIndex]} ${calendarYear}`;
 
-  // generate calendar with the (possibly) loaded settings
-  const calendarData = generateCalendarData(calendarYear, calendarMonthIndex, avgCycleLength, lastPeriodStart);
+  // generate calendar with the (possibly) loaded settings (periodLength affects phases)
+  const calendarData = generateCalendarData(calendarYear, calendarMonthIndex, avgCycleLength, lastPeriodStart, periodLength);
 
   // derived stats
   const msPerDay = 1000 * 60 * 60 * 24;
@@ -201,7 +213,7 @@ export default function CycleTracker() {
                     <div className="mt-4">
                       <div className="mt-1.5">
                         <div className="flex items-center gap-2">
-                          <label className="text-sm font-medium text-foreground">Cycle Variation</label>
+                          <label className="text-sm font-medium text-foreground">Period Length</label>
                           <Popover>
                             <PopoverTrigger asChild>
                               <button className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/80 text-xs">
@@ -209,7 +221,7 @@ export default function CycleTracker() {
                               </button>
                             </PopoverTrigger>
                             <PopoverContent>
-                              <p className="text-sm">Cycle variation is the typical fluctuation in your cycle length from month to month. Use this to set expected variability.</p>
+                              <p className="text-sm">Typical duration of your period in days.</p>
                             </PopoverContent>
                           </Popover>
                         </div>
@@ -217,10 +229,10 @@ export default function CycleTracker() {
                         <div className="mt-2 flex items-center gap-2">
                           <Input
                             type="number"
-                            min={0}
+                            min={1}
                             max={14}
-                            value={variationDays}
-                            onChange={(e) => { setVariationDays(Number(e.target.value || 0)); setIsDirty(true); }}
+                            value={periodLength}
+                            onChange={(e) => { setPeriodLength(Number(e.target.value || 0)); setIsDirty(true); }}
                             className="w-20"
                           />
                           <span className="text-sm text-muted-foreground">days</span>
@@ -272,6 +284,38 @@ export default function CycleTracker() {
                     </div>
                   </div>
                 </div>
+
+                {/* Cycle variation centered under both columns */}
+                <div className="mt-4 flex justify-center">
+                  <div className="w-full max-w-md rounded-2xl bg-card p-4">
+                    <div className="flex items-center gap-2 justify-center">
+                      <label className="text-sm font-medium text-foreground">Cycle Variation</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/80 text-xs">
+                            <Info className="h-3 w-3" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent>
+                          <p className="text-sm">Cycle variation is the typical fluctuation in your cycle length from month to month. Use this to set expected variability.</p>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={14}
+                        value={variationDays}
+                        onChange={(e) => { setVariationDays(Number(e.target.value || 0)); setIsDirty(true); }}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-muted-foreground">days</span>
+                    </div>
+                  </div>
+                </div>
+
               </section>
 
               <section className="rounded-2xl bg-card p-4">
@@ -378,12 +422,14 @@ export default function CycleTracker() {
               
               {calendarData.map((day) => {
                 const isTodayCell = isSameDay(day.date, today);
+                const dayIso = day.date.toISOString().slice(0,10);
+                const isPeriodDay = periodDays.includes(dayIso);
                 return (
                   <motion.button
                     key={day.day}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => { setSelectedDay(day.day); navigate(`/day/${day.day}`); }}
+                    onClick={() => { setSelectedDay(day.day); navigate(`/day/${day.date.toISOString().slice(0,10)}?journal=1`); }}
                     className={`relative aspect-square rounded-xl border-2 transition-all ${
                       getPhaseColor(day.phase)
                     } ${selectedDay === day.day ? "ring-2 ring-primary ring-offset-2" : ""} ${isTodayCell ? 'ring-4 ring-primary/30' : ''}`}
@@ -403,6 +449,9 @@ export default function CycleTracker() {
                           <div className="text-sm">PMS warning — {pmsDays} days before period</div>
                         </TooltipContent>
                       </Tooltip>
+                    )}
+                    {isPeriodDay && (
+                      <div className="absolute bottom-1 left-1 rounded-md bg-red-100 px-1 text-xs text-red-700">Period</div>
                     )}
                     {day.trades > 0 && (
                       <>
@@ -456,6 +505,39 @@ export default function CycleTracker() {
                     </div>
                   </div>
                 )}
+
+                  {/* Actions for selected day: mark as period start, toggle period day */}
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      onClick={() => {
+                        const iso = calendarData[selectedDay - 1].date.toISOString().slice(0,10);
+                        setLastPeriodStart(iso);
+                        if (!periodDays.includes(iso)) setPeriodDays([...periodDays, iso]);
+                        saveSettings();
+                        setIsDirty(false);
+                      }}
+                    >
+                      Set as Period Start
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const iso = calendarData[selectedDay - 1].date.toISOString().slice(0,10);
+                        if (periodDays.includes(iso)) {
+                          setPeriodDays(periodDays.filter(d => d !== iso));
+                        } else {
+                          setPeriodDays([...periodDays, iso]);
+                        }
+                        saveSettings();
+                        setIsDirty(false);
+                      }}
+                    >
+                      {periodDays.includes(calendarData[selectedDay - 1].date.toISOString().slice(0,10)) ? 'Unmark Period Day' : 'Mark Period Day'}
+                    </Button>
+
+                    {/* Clear Period Start removed — setting a different start will recompute period */}
+                  </div>
 
                 <div className="mt-6 space-y-4">
                   <div>
