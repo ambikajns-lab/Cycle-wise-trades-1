@@ -36,6 +36,32 @@ npm i
 npm run dev
 ```
 
+## Local setup for Auth (Supabase)
+
+This project uses Supabase for authentication. For local development you can either
+use a Supabase project (free tier available) or enable a development flag that
+skips email verification.
+
+1. Copy `.env.example` to `.env.local` and fill the Supabase values if you have them:
+
+```env
+VITE_SUPABASE_URL=YOUR_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_ANON_KEY
+# Optional for local dev only (auto-login new users)
+VITE_SKIP_EMAIL_VERIFICATION=true
+```
+
+2. If you plan to use Supabase email confirmation:
+- In Supabase Dashboard → Auth → Templates: paste the HTML and Text templates from `src/email-templates/` into the Confirmation template.
+- In Supabase Dashboard → Auth → Settings (Redirect URLs): add your local origin (e.g. `http://localhost:8081`).
+
+3. Start the dev server:
+```bash
+npm run dev
+```
+
+Security note: never commit `.env.local` — keep API keys private. See `.gitignore` for defaults.
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).

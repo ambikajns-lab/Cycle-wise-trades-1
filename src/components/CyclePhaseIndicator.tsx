@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { Moon, Sun, Sparkles, Cloud } from "lucide-react";
 
 type CyclePhase = "menstruation" | "follicular" | "ovulation" | "luteal";
@@ -45,6 +46,7 @@ export function CyclePhaseIndicator({ phase, day, recommendation }: CyclePhaseIn
   const Icon = config.icon;
 
   return (
+    <Link to={`/day/${day}`} aria-label={`Open day ${day} in Cycle Tracker`}>
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -116,5 +118,6 @@ export function CyclePhaseIndicator({ phase, day, recommendation }: CyclePhaseIn
         </p>
       </motion.div>
     </motion.div>
+    </Link>
   );
 }

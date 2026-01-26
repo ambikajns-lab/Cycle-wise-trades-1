@@ -143,7 +143,7 @@ const Pricing = () => {
                 }`}
                 variant={plan.popular ? "default" : "secondary"}
               >
-                <Link to="/">{plan.cta}</Link>
+                <Link to={plan.cta === "Contact Sales" ? "/contact" : "/register"}>{plan.cta}</Link>
               </Button>
             </motion.div>
           ))}

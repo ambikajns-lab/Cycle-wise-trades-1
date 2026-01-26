@@ -1,9 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
-
+/* ------------------------------ */
+/* BASE LAYER                     */
+/* ------------------------------ */
 @layer base {
   :root {
     /* Feminine pastel palette */
@@ -107,9 +110,7 @@
     --sidebar-border: 340 15% 18%;
     --sidebar-ring: 345 55% 65%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
@@ -124,6 +125,9 @@
   }
 }
 
+/* ------------------------------ */
+/* UTILITIES LAYER                */
+/* ------------------------------ */
 @layer utilities {
   .glass {
     @apply bg-white/70 backdrop-blur-xl border border-white/20;

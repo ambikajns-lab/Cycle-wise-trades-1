@@ -22,7 +22,7 @@ const LandingNavbar = () => {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="font-serif text-xl font-bold">CycleTrader</span>
+            <span className="font-serif text-xl font-bold">SheTrades</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -41,10 +41,10 @@ const LandingNavbar = () => {
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-4">
             <Button asChild variant="ghost" size="sm">
-              <Link to="/">Log In</Link>
+              <Link to="/login">Log In</Link>
             </Button>
             <Button asChild size="sm" className="rounded-full px-6">
-              <Link to="/">Get Started</Link>
+              <Link to="/register">Get Started</Link>
             </Button>
           </div>
 
@@ -79,10 +79,10 @@ const LandingNavbar = () => {
                 ))}
                 <hr className="border-border/50" />
                 <Button asChild variant="ghost" className="w-full justify-start">
-                  <Link to="/">Log In</Link>
+                  <Link to="/login">Log In</Link>
                 </Button>
                 <Button asChild className="w-full rounded-full">
-                  <Link to="/">Get Started</Link>
+                  <Link to="/register">Get Started</Link>
                 </Button>
               </div>
             </motion.div>

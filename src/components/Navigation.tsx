@@ -14,7 +14,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 
 const navItems = [
-  { path: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { path: "/journal", icon: BookOpen, label: "Trade Journal" },
   { path: "/cycle", icon: Calendar, label: "Cycle Tracker" },
   { path: "/strategies", icon: TrendingUp, label: "Strategies" },
@@ -34,16 +34,18 @@ export function Navigation() {
         animate={{ x: 0, opacity: 1 }}
         className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-border bg-sidebar p-6 lg:flex"
       >
+        {/* Branding */}
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70">
             <span className="text-lg font-bold text-primary-foreground">✨</span>
           </div>
           <div>
-            <h1 className="font-serif text-lg font-bold text-foreground">CycleTrader</h1>
-            <p className="text-xs text-muted-foreground">For Women Who Trade</p>
+            <h1 className="font-serif text-lg font-bold text-foreground">SheTrades</h1>
+            <p className="text-xs text-muted-foreground">Empowering Women in Trading</p>
           </div>
         </div>
 
+        {/* Navigation Items */}
         <div className="mt-10 flex flex-1 flex-col gap-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -70,6 +72,7 @@ export function Navigation() {
           })}
         </div>
 
+        {/* Settings */}
         <NavLink
           to="/settings"
           className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
@@ -79,7 +82,24 @@ export function Navigation() {
         </NavLink>
       </motion.nav>
 
-      {/* Mobile Navigation */}
+      {/* Mobile Header */}
+      <div className="fixed left-0 right-0 top-0 z-40 flex items-center justify-between border-b border-border bg-sidebar/95 backdrop-blur-sm p-4 lg:hidden">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70">
+            <span className="text-sm font-bold text-primary-foreground">✨</span>
+          </div>
+          <span className="font-serif text-base font-bold text-foreground">SheTrades</span>
+        </div>
+
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="rounded-lg p-2 text-foreground hover:bg-muted"
+        >
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {/* Mobile Navigation Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-sidebar p-2 lg:hidden">
         <div className="flex items-center justify-around">
           {navItems.slice(0, 5).map((item) => {
@@ -98,22 +118,6 @@ export function Navigation() {
             );
           })}
         </div>
-      </div>
-
-      {/* Mobile Header */}
-      <div className="fixed left-0 right-0 top-0 z-40 flex items-center justify-between border-b border-border bg-sidebar/95 backdrop-blur-sm p-4 lg:hidden">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70">
-            <span className="text-sm font-bold text-primary-foreground">✨</span>
-          </div>
-          <span className="font-serif text-base font-bold text-foreground">CycleTrader</span>
-        </div>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="rounded-lg p-2 text-foreground hover:bg-muted"
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
       </div>
 
       {/* Mobile Menu Overlay */}

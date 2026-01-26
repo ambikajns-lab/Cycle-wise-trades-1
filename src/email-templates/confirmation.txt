@@ -1,0 +1,13 @@
+Welcome to SheTrades
+
+Hi there,
+
+Thanks for signing up for SheTrades — we're excited to have you!
+
+Please confirm your email address by opening the link below:
+
+{{ .ConfirmationURL }}
+
+If you didn't sign up, you can ignore this email.
+
+— The SheTrades Team

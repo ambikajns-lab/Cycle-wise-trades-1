@@ -1,13 +1,13 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const CTA = () => {
   return (
     <section className="py-24 relative overflow-hidden">
-      <div className="absolute inset-0 gradient-hero" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/20 rounded-full blur-3xl" />
+      <div className="absolute inset-0 gradient-hero pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/20 rounded-full blur-3xl pointer-events-none" />
 
       <div className="container relative z-10 mx-auto px-4">
         <motion.div
@@ -35,15 +35,8 @@ const CTA = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button asChild size="lg" className="w-full sm:w-auto text-lg px-8 py-6 rounded-full shadow-glow">
-              <Link to="/">
-                Start Free Trial
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="w-full sm:w-auto text-lg px-8 py-6 rounded-full">
-              <a href="#features">Learn More</a>
-            </Button>
+            {/* Start Free Trial → REGISTER */}
+            <CTAButtons />
           </div>
 
           <p className="text-sm text-muted-foreground mt-6">
@@ -52,6 +45,37 @@ const CTA = () => {
         </motion.div>
       </div>
     </section>
+  );
+};
+
+const CTAButtons = () => {
+  const navigate = useNavigate();
+
+  const handleLearn = () => {
+    const el = document.getElementById("features");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
+
+  return (
+    <>
+      <Button
+        size="lg"
+        className="w-full sm:w-auto text-lg px-8 py-6 rounded-full shadow-glow"
+        onClick={() => navigate("/register")}
+      >
+        Start Free Trial
+        <ArrowRight className="ml-2 h-5 w-5" />
+      </Button>
+
+      <Button
+        variant="outline"
+        size="lg"
+        className="w-full sm:w-auto text-lg px-8 py-6 rounded-full"
+        onClick={handleLearn}
+      >
+        Learn More
+      </Button>
+    </>
   );
 };
 

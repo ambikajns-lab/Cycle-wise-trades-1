@@ -3,6 +3,7 @@ import { Plus, Filter, Download, TrendingUp, TrendingDown, Search } from "lucide
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { useLocation, Link } from "react-router-dom";
 
 const mockTrades = [
   { id: "1", date: "2025-01-24", time: "09:32", instrument: "EUR/USD", direction: "long", entry: 1.0845, sl: 1.0820, tp: 1.0895, result: "win", pnl: 450, rMultiple: 2.1, strategy: "ICT Silver Bullet", emotions: "Calm", cyclePhase: "Follicular", confirmations: 4 },
@@ -13,12 +14,18 @@ const mockTrades = [
 ];
 
 export default function TradeJournal() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const dateFilter = params.get("date") || "";
+
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredTrades = mockTrades.filter(trade => 
-    trade.instrument.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    trade.strategy.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTrades = mockTrades
+    .filter(trade => 
+      trade.instrument.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      trade.strategy.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .filter(trade => (dateFilter ? trade.date === dateFilter : true));
 
   const getResultBadge = (result: string, pnl: number) => {
     const styles = {
@@ -96,6 +103,17 @@ export default function TradeJournal() {
               className="pl-10"
             />
           </div>
+          {dateFilter && (
+            <div className="flex items-center gap-3">
+              <div className="rounded-md bg-card p-2">
+                <p className="text-sm text-muted-foreground">Showing trades for</p>
+                <p className="font-medium">{dateFilter}</p>
+              </div>
+              <Link to="/journal">
+                <Button variant="outline" size="sm">Clear date</Button>
+              </Link>
+            </div>
+          )}
           <Button variant="outline" size="sm">
             <Filter className="h-4 w-4" />
             Filters

@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Welcome to SheTrades</title>
+    <style>
+      /* Email-safe minimal styles */
+      body { margin:0; padding:0; background:#f8f7fb; font-family: 'Outfit', system-ui, Arial, sans-serif; color:#2b2730; }
+      .container { width:100%; max-width:600px; margin:24px auto; background: #fff; border-radius:16px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.06); }
+      .hero { padding:36px 28px; text-align:center; background: linear-gradient(135deg, rgba(251,233,235,0.6), rgba(235,245,242,0.6)); }
+      .logo { display:inline-block; width:56px; height:56px; border-radius:12px; background:linear-gradient(135deg,#f59aa9,#9be3d6); line-height:56px; }
+      h1 { font-family: 'Playfair Display', serif; font-size:28px; margin:18px 0 6px; color:#2b2730; }
+      p.lead { margin:0 0 18px; color:#6b6470; font-size:15px; }
+      .card { padding:28px; }
+      .btn { display:inline-block; background:#f472b6; color:#fff; text-decoration:none; padding:12px 24px; border-radius:999px; font-weight:600; }
+      .muted { color:#9a92a0; font-size:13px; }
+      .footer { padding:18px 28px; text-align:center; font-size:12px; color:#b8b2bd; }
+      a { color:inherit; }
+    </style>
+  </head>
+  <body>
+    <div class="container" role="article" aria-label="Welcome to SheTrades">
+      <div class="hero">
+        <div class="logo" aria-hidden>✨</div>
+        <h1>Welcome to SheTrades</h1>
+        <p class="lead">You're on your way to trading more confidently. Let's get your account ready.</p>
+      </div>
+
+      <div class="card">
+        <p style="margin-top:0;">Hi there,</p>
+        <p class="muted">Thanks for signing up for <strong>SheTrades</strong>. To complete your registration, please confirm your email address by clicking the button below.</p>
+
+        <p style="text-align:center; margin:28px 0;">
+          <!-- Supabase provides a confirmation URL variable — use it here -->
+          <a href="{{ .ConfirmationURL }}" class="btn">Confirm your email</a>
+        </p>
+
+        <p class="muted">If the button doesn't work, copy and paste the following URL into your browser:</p>
+        <p style="word-break:break-all; font-size:13px; color:#6b6470;">{{ .ConfirmationURL }}</p>
+
+        <hr style="border:none; border-top:1px solid #f1edf4; margin:20px 0;" />
+
+        <p class="muted">Need help? Reply to this email and we'll get back to you.</p>
+      </div>
+
+      <div class="footer">
+        SheTrades — Empowering Women in Trading<br />
+        <span style="display:block;margin-top:8px;">If you didn't sign up, you can ignore this email.</span>
+      </div>
+    </div>
+  </body>
+</html>

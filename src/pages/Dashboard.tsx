@@ -9,6 +9,7 @@ import { RecentTradesTable } from "@/components/RecentTradesTable";
 import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { PropFirmSummary } from "@/components/PropFirmSummary";
 import { Bell, User } from "lucide-react";
+import { Link } from "react-router-dom";
 
 // Mock data for demonstration
 const mockTrades = [
@@ -63,9 +64,9 @@ export default function Dashboard() {
               <Bell className="h-5 w-5" />
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
             </button>
-            <button className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+            <Link to="/profile" className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
               <User className="h-5 w-5" />
-            </button>
+            </Link>
           </div>
         </motion.header>
 

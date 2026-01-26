@@ -7,7 +7,7 @@ const testimonials = [
     role: "Forex Trader",
     avatar: "S",
     content:
-      "I never realized how much my cycle affected my trading until I started using CycleTrader. My win rate increased by 30% just by avoiding high-risk days.",
+      "I never realized how much my cycle affected my trading until I started using SheTrades. My win rate increased by 30% just by avoiding high-risk days.",
     rating: 5,
   },
   {
@@ -91,7 +91,7 @@ const Testimonials = () => {
             transition={{ delay: 0.2 }}
             className="text-xl text-muted-foreground max-w-2xl mx-auto"
           >
-            See what our community is saying about CycleTrader
+            See what our community is saying about SheTrades
           </motion.p>
         </div>
 

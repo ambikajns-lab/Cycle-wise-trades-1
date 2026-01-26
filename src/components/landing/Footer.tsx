@@ -38,7 +38,7 @@ const Footer = () => {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                 <Sparkles className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="font-serif text-xl font-bold">CycleTrader</span>
+              <span className="font-serif text-xl font-bold">SheTrades</span>
             </Link>
             <p className="text-sm text-muted-foreground">
               The first trading journal designed for women. Trade smarter with cycle intelligence.
@@ -67,7 +67,7 @@ const Footer = () => {
 
         <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            © 2025 CycleTrader. All rights reserved.
+            © 2025 SheTrades. All rights reserved.
           </p>
           <p className="text-sm text-muted-foreground flex items-center gap-1">
             Made with <Heart className="h-4 w-4 text-primary fill-primary" /> for women traders
