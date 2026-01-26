@@ -12,12 +12,25 @@ import { Bell, User } from "lucide-react";
 import { Link } from "react-router-dom";
 
 // Mock data for demonstration
-const mockTrades = [
+const rawMockTrades = [
   { id: "1", date: "Jan 24", instrument: "EUR/USD", direction: "long" as const, result: "win" as const, rMultiple: 2.1, strategy: "ICT", cyclePhase: "Follicular" },
   { id: "2", date: "Jan 23", instrument: "GBP/JPY", direction: "short" as const, result: "loss" as const, rMultiple: -1, strategy: "SMC", cyclePhase: "Follicular" },
   { id: "3", date: "Jan 22", instrument: "NAS100", direction: "long" as const, result: "win" as const, rMultiple: 1.5, strategy: "ICT", cyclePhase: "Ovulation" },
   { id: "4", date: "Jan 21", instrument: "XAU/USD", direction: "short" as const, result: "breakeven" as const, rMultiple: 0, strategy: "SMC", cyclePhase: "Ovulation" },
 ];
+
+// Convert loose date strings to ISO YYYY-MM-DD (assume year 2025 for demo)
+const parseToIso = (d: string) => {
+  try {
+    const dt = new Date(`${d} 2025`);
+    if (isNaN(dt.getTime())) return undefined;
+    return dt.toISOString().slice(0,10);
+  } catch {
+    return undefined;
+  }
+};
+
+const mockTrades = rawMockTrades.map(t => ({ ...t, iso: parseToIso(t.date) }));
 
 const mockLeaderboard = [
   { rank: 1, name: "Sarah M.", avatar: "👩‍💼", score: 847, badge: "Miss Discipline" },

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { TrendingUp, TrendingDown, MoreHorizontal } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Trade {
   id: string;
@@ -62,7 +63,13 @@ export function RecentTradesTable({ trades }: RecentTradesTableProps) {
                 transition={{ delay: index * 0.05 }}
                 className="border-b border-border/50 last:border-0"
               >
-                <td className="py-3 text-sm text-foreground">{trade.date}</td>
+                <td className="py-3 text-sm text-foreground">
+                  {trade.iso ? (
+                    <Link to={`/day/${trade.iso}?journal=1`} className="text-primary underline">{trade.date}</Link>
+                  ) : (
+                    trade.date
+                  )}
+                </td>
                 <td className="py-3 text-sm font-medium text-foreground">{trade.instrument}</td>
                 <td className="py-3">
                   {trade.direction === "long" ? (
