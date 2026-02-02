@@ -1,40 +1,29 @@
-# Welcome to your Lovable project
+# CycleWise Trades
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+This repository contains the CycleWise Trades frontend (Vite + React + TypeScript) and a few small backend helper scripts in `server/` (scrapers, MT API emulator, and mail helper).
 
 ## How can I edit this code?
 
-There are several ways of editing your application.
+You can work locally with your IDE or use Vercel for preview & production deployments.
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Local development (recommended):
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
 git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
+
+Deploying to Vercel:
+
+- Import this GitHub repository into Vercel (select the Vite preset if available).
+- Build command: `npm run build`
+- Output directory: `dist`
+- Add required environment variables in the Vercel project settings (see `.github/copilot-instructions.md` for details).
+
 
 ## Local setup for Auth (Supabase)
 
