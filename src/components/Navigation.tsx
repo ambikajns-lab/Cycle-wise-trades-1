@@ -8,14 +8,20 @@ import {
   TrendingUp,
   Sparkles,
   Menu,
-  X
+  X,
+  BarChart3,
+  Building2
 } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
   { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { path: "/journal", icon: BookOpen, label: "Trade Journal" },
+  { path: "/statistics", icon: BarChart3, label: "Statistics" },
+  // Prop Firms handled separately for expandable nav
   { path: "/cycle", icon: Calendar, label: "Cycle Tracker" },
   { path: "/strategies", icon: TrendingUp, label: "Strategies" },
   { path: "/challenges", icon: Trophy, label: "Challenges" },
@@ -25,6 +31,9 @@ const navItems = [
 export function Navigation() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showPropFirmsSubnav, setShowPropFirmsSubnav] = useState(
+    location.pathname.startsWith("/prop-firms") || location.pathname.startsWith("/propfirm-compare")
+  );
 
   return (
     <>
@@ -46,6 +55,13 @@ export function Navigation() {
         </div>
 
         {/* Navigation Items */}
+        <div className="mt-6">
+          <Link to={`/trade/new?date=${new Date().toISOString().slice(0,10)}`}>
+            <Button size="sm" className="w-full justify-center">
+              <Plus className="h-3.5 w-3.5" /> New Trade
+            </Button>
+          </Link>
+        </div>
         <div className="mt-10 flex flex-1 flex-col gap-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -70,6 +86,47 @@ export function Navigation() {
               </NavLink>
             );
           })}
+          {/* Prop Firms expandable nav */}
+          <button
+            className={`group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
+              (location.pathname.startsWith("/prop-firms") || location.pathname.startsWith("/propfirm-compare"))
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            } w-full text-left`}
+            onClick={() => setShowPropFirmsSubnav((v) => !v)}
+            aria-expanded={showPropFirmsSubnav}
+            aria-controls="propfirms-subnav"
+          >
+            <Building2 className="h-5 w-5" />
+            Prop Firms
+            <span className="ml-auto transition-transform" style={{ transform: showPropFirmsSubnav ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+              ▶
+            </span>
+          </button>
+          {showPropFirmsSubnav && (
+            <div id="propfirms-subnav" className="ml-8 flex flex-col gap-1 mt-1">
+              <NavLink
+                to="/prop-firms"
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  location.pathname === "/prop-firms"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                Prop Firm Connector
+              </NavLink>
+              <NavLink
+                to="/propfirm-compare"
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  location.pathname === "/propfirm-compare"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                Prop Firm Comparison
+              </NavLink>
+            </div>
+          )}
         </div>
 
         {/* Settings */}
@@ -102,7 +159,7 @@ export function Navigation() {
       {/* Mobile Navigation Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-sidebar p-2 lg:hidden">
         <div className="flex items-center justify-around">
-          {navItems.slice(0, 5).map((item) => {
+          {navItems.slice(0, 4).map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <NavLink
@@ -117,7 +174,59 @@ export function Navigation() {
               </NavLink>
             );
           })}
+          {/* Prop Firms mobile nav button */}
+          <button
+            className={`flex flex-col items-center gap-1 rounded-xl p-2 transition-all ${
+              (location.pathname.startsWith("/prop-firms") || location.pathname.startsWith("/propfirm-compare"))
+                ? "text-primary"
+                : "text-muted-foreground"
+            }`}
+            onClick={() => setShowPropFirmsSubnav((v) => !v)}
+            aria-expanded={showPropFirmsSubnav}
+            aria-controls="propfirms-subnav-mobile"
+          >
+            <Building2 className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Prop Firms</span>
+          </button>
         </div>
+        {/* Mobile subnav overlay */}
+        {showPropFirmsSubnav && (
+          <div id="propfirms-subnav-mobile" className="absolute bottom-12 left-0 right-0 bg-sidebar border-t border-border p-2 flex flex-col gap-1 z-50">
+            <NavLink
+              to="/prop-firms"
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                location.pathname === "/prop-firms"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+              onClick={() => setShowPropFirmsSubnav(false)}
+            >
+              Prop Firm Connector
+            </NavLink>
+                            <NavLink
+                              to="/prop-firms"
+                              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                                location.pathname === "/prop-firms"
+                                  ? "bg-primary/10 text-primary"
+                                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                              }`}
+                              onClick={() => setMobileOpen(false)}
+                            >
+                              Prop Firm Connector
+                            </NavLink>
+            <NavLink
+              to="/propfirm-compare"
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                location.pathname === "/propfirm-compare"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+              onClick={() => setShowPropFirmsSubnav(false)}
+            >
+              Prop Firm Comparison
+            </NavLink>
+          </div>
+        )}
       </div>
 
       {/* Mobile Menu Overlay */}
@@ -139,6 +248,49 @@ export function Navigation() {
                 {item.label}
               </NavLink>
             ))}
+            {/* Prop Firms expandable in mobile menu */}
+            <button
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-foreground hover:bg-muted w-full text-left mt-2 ${
+                (location.pathname.startsWith("/prop-firms") || location.pathname.startsWith("/propfirm-compare"))
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground"
+              }`}
+              onClick={() => setShowPropFirmsSubnav((v) => !v)}
+              aria-expanded={showPropFirmsSubnav}
+              aria-controls="propfirms-subnav-mobile-menu"
+            >
+              <Building2 className="h-5 w-5" />
+              Prop Firms
+              <span className="ml-auto transition-transform" style={{ transform: showPropFirmsSubnav ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                ▶
+              </span>
+            </button>
+            {showPropFirmsSubnav && (
+              <div id="propfirms-subnav-mobile-menu" className="ml-8 flex flex-col gap-1 mt-1">
+                <NavLink
+                  to="/prop-firms"
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                    location.pathname === "/prop-firms"
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Übersicht
+                </NavLink>
+                <NavLink
+                  to="/propfirm-compare"
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                    location.pathname === "/propfirm-compare"
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Prop Firm Comparison
+                </NavLink>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

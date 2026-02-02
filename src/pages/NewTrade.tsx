@@ -1,0 +1,1079 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+
+const DEFAULT_STRATEGIES = [
+  { name: 'ICT Silver Bullet', minConfirmations: 3 },
+  { name: 'SMC Sweep', minConfirmations: 2 },
+  { name: 'Momentum Breakout', minConfirmations: 1 },
+];
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+// Compress image to reduce localStorage usage
+function compressImage(dataUrl: string, maxWidth = 800, quality = 0.7): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ratio = Math.min(maxWidth / img.width, 1);
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } else {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+export default function NewTrade({ dateProp }: { dateProp?: string } = {}) {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const dateParam = searchParams.get('date');
+  const idParam = searchParams.get('id');
+  const isoDate = dateProp || dateParam || new Date().toISOString().slice(0, 10);
+  
+  console.log('NewTrade mounted with dateParam:', dateParam, 'idParam:', idParam);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [instrument, setInstrument] = useState('');
+  const [direction, setDirection] = useState<'long' | 'short'>('long');
+  const [entryPrice, setEntryPrice] = useState<number | ''>('');
+  const [slPrice, setSlPrice] = useState<number | ''>('');
+  const [tpPrice, setTpPrice] = useState<number | ''>('');
+  const [strategy, setStrategy] = useState('');
+  const [quick, setQuick] = useState(false);
+
+  const [checklist, setChecklist] = useState<{ id: string; text: string; done: boolean }[]>([]);
+
+  const [preNote, setPreNote] = useState('');
+  const [postNote, setPostNote] = useState('');
+  const [emotionBefore, setEmotionBefore] = useState(5);
+  const [emotionAfter, setEmotionAfter] = useState(5);
+  const [result, setResult] = useState<'win' | 'loss' | 'breakeven' | ''>('');
+  const [lossReason, setLossReason] = useState('');
+  const [exitReason, setExitReason] = useState('');
+  const [customExitReason, setCustomExitReason] = useState('');
+  const [customWinReasons, setCustomWinReasons] = useState<string[]>([]);
+  const [customLossReasons, setCustomLossReasons] = useState<string[]>([]);
+  const [newWinReason, setNewWinReason] = useState('');
+  const [newLossReason, setNewLossReason] = useState('');
+  const [defaultWinReasons, setDefaultWinReasons] = useState<string[]>([]);
+  const [defaultLossReasons, setDefaultLossReasons] = useState<string[]>([]);
+  const [rrr, setRrr] = useState<number | ''>('');
+  const [riskPct, setRiskPct] = useState<number | ''>('');
+  const [closedPnl, setClosedPnl] = useState<number | ''>('');
+  const [closedRrr, setClosedRrr] = useState<number | ''>('');
+  const [learnings, setLearnings] = useState('');
+  const [tradeRating, setTradeRating] = useState<number>(0);
+
+  const [tfSmall, setTfSmall] = useState('5m');
+  const [tfLarge, setTfLarge] = useState('1h');
+
+  const [imageBeforeSmall, setImageBeforeSmall] = useState<string | null>(null);
+  const [imageBeforeLarge, setImageBeforeLarge] = useState<string | null>(null);
+  const [imageAfterSmall, setImageAfterSmall] = useState<string | null>(null);
+  const [imageAfterLarge, setImageAfterLarge] = useState<string | null>(null);
+
+  const [viewMode, setViewMode] = useState<'before' | 'after'>('before');
+  const [preSmallUrl, setPreSmallUrl] = useState('');
+  const [preLargeUrl, setPreLargeUrl] = useState('');
+  const [postSmallUrl, setPostSmallUrl] = useState('');
+  const [postLargeUrl, setPostLargeUrl] = useState('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ show: boolean; message: string; onConfirm: () => void } | null>(null);
+
+  const strategies = useMemo(() => DEFAULT_STRATEGIES.map((s) => s.name), []);
+  const strategyRequirements = useMemo(() => Object.fromEntries(DEFAULT_STRATEGIES.map((s) => [s.name, s.minConfirmations])), [] as any);
+  const minRequired = strategyRequirements[strategy] || 0;
+
+  // Load custom reasons from localStorage
+  useEffect(() => {
+    try {
+      const winReasons = localStorage.getItem('cw_custom_win_reasons');
+      const lossReasons = localStorage.getItem('cw_custom_loss_reasons');
+      if (winReasons) setCustomWinReasons(JSON.parse(winReasons));
+      if (lossReasons) setCustomLossReasons(JSON.parse(lossReasons));
+      
+      const defaultWins = localStorage.getItem('cw_default_win_reasons');
+      const defaultLosses = localStorage.getItem('cw_default_loss_reasons');
+      setDefaultWinReasons(defaultWins ? JSON.parse(defaultWins) : [
+        'TP Hit', 'Manual Close', 'Trailing SL', 'Partial Close', 
+        'Target Reached', 'Risk Management', 'Time-based Exit'
+      ]);
+      setDefaultLossReasons(defaultLosses ? JSON.parse(defaultLosses) : [
+        'Against Bias', 'Entry Too Early', 'Entry Too Late', 'SL Too Tight',
+        'Wrong Setup', 'Emotional Trade', 'FOMO Entry', 'News Event',
+        'Missing Confirmation', 'Overtrading'
+      ]);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const addCustomWinReason = () => {
+    if (!newWinReason.trim()) return;
+    const reason = newWinReason.trim();
+    const updated = [...customWinReasons, reason];
+    setCustomWinReasons(updated);
+    localStorage.setItem('cw_custom_win_reasons', JSON.stringify(updated));
+    setExitReason(reason);
+    setNewWinReason('');
+  };
+
+  const removeCustomWinReason = (reason: string) => {
+    setConfirmDialog({
+      show: true,
+      message: `Delete "${reason}"?`,
+      onConfirm: () => {
+        const updated = customWinReasons.filter(r => r !== reason);
+        setCustomWinReasons(updated);
+        localStorage.setItem('cw_custom_win_reasons', JSON.stringify(updated));
+        setConfirmDialog(null);
+      }
+    });
+  };
+
+  const addCustomLossReason = () => {
+    if (!newLossReason.trim()) return;
+    const reason = newLossReason.trim();
+    const updated = [...customLossReasons, reason];
+    setCustomLossReasons(updated);
+    localStorage.setItem('cw_custom_loss_reasons', JSON.stringify(updated));
+    setExitReason(reason);
+    setNewLossReason('');
+  };
+
+  const removeCustomLossReason = (reason: string) => {
+    setConfirmDialog({
+      show: true,
+      message: `Delete "${reason}"?`,
+      onConfirm: () => {
+        const updated = customLossReasons.filter(r => r !== reason);
+        setCustomLossReasons(updated);
+        localStorage.setItem('cw_custom_loss_reasons', JSON.stringify(updated));
+        setConfirmDialog(null);
+      }
+    });
+  };
+
+  const removeDefaultWinReason = (reason: string) => {
+    setConfirmDialog({
+      show: true,
+      message: `Delete default reason "${reason}"?`,
+      onConfirm: () => {
+        const updated = defaultWinReasons.filter(r => r !== reason);
+        setDefaultWinReasons(updated);
+        localStorage.setItem('cw_default_win_reasons', JSON.stringify(updated));
+        setConfirmDialog(null);
+      }
+    });
+  };
+
+  const removeDefaultLossReason = (reason: string) => {
+    setConfirmDialog({
+      show: true,
+      message: `Delete default reason "${reason}"?`,
+      onConfirm: () => {
+        const updated = defaultLossReasons.filter(r => r !== reason);
+        setDefaultLossReasons(updated);
+        localStorage.setItem('cw_default_loss_reasons', JSON.stringify(updated));
+        setConfirmDialog(null);
+      }
+    });
+  };
+
+  const [isEditing, setIsEditing] = useState(false);
+  const initialLoadDone = React.useRef(false);
+
+  // Load existing trade data
+  useEffect(() => {
+    console.log('Load effect running, idParam:', idParam, 'isoDate:', isoDate);
+    if (!idParam || initialLoadDone.current) {
+      console.log('Skipping load - no idParam or already loaded');
+      return;
+    }
+    
+    try {
+      const key = `cw_journal_${isoDate}`;
+      console.log('Looking for trade in:', key);
+      const raw = localStorage.getItem(key);
+      console.log('Raw data found:', !!raw);
+      if (!raw) {
+        console.log('No data in localStorage for this date');
+        return;
+      }
+      const data = JSON.parse(raw);
+      console.log('Trades in storage:', data.trades?.length);
+      const found = (data.trades || []).find((t: any) => t.id === idParam);
+      console.log('Found trade:', found ? 'YES' : 'NO', found?.checklist?.length, 'checklist items');
+      if (!found) {
+        console.log('Trade not found with id:', idParam);
+        return;
+      }
+      
+      initialLoadDone.current = true;
+      setIsEditing(true);
+      setEditingId(found.id);
+      setInstrument(found.instrument || '');
+      setDirection(found.direction || 'long');
+      setEntryPrice(found.entry ?? '');
+      setSlPrice(found.sl ?? '');
+      setTpPrice(found.tp ?? '');
+      setStrategy(found.strategy || '');
+      
+      // Load checklist - this is the key part
+      if (found.checklist && found.checklist.length > 0) {
+        setChecklist(found.checklist.map((c: any, i: number) => ({ 
+          id: `${found.id}-c-${i}`, 
+          text: c.text || c, 
+          done: !!c.done 
+        })));
+      } else if (found.strategy) {
+        // Only create default checklist if no checklist was saved but strategy exists
+        const defs = [
+          'Price action aligns with bias',
+          'Higher timeframe support/resistance',
+          'Volatility profile acceptable',
+          'Risk defined (SL/TP)',
+        ];
+        setChecklist(defs.map((t, i) => ({ id: `${found.id}-c-${i}`, text: t, done: false })));
+      }
+      
+      setPreNote(found.preNote || '');
+      setPostNote(found.postNote || '');
+      setEmotionBefore(found.emotion_before ?? 5);
+      setEmotionAfter(found.emotion_after ?? 5);
+      setTfSmall(found.timeframe || found.tfSmall || '5m');
+      setTfLarge(found.higher_timeframe || found.tfLarge || '1h');
+      setResult(found.result || '');
+      setLossReason(found.loss_reason || '');
+      setExitReason(found.exit_reason || '');
+      setCustomExitReason(found.custom_exit_reason || '');
+      setImageBeforeSmall(found.image_before_small_tf || null);
+      setImageBeforeLarge(found.image_before_large_tf || null);
+      setImageAfterSmall(found.image_after_small_tf || null);
+      setImageAfterLarge(found.image_after_large_tf || null);
+      setTradeRating(found.rating || 0);
+      setRrr(found.rrr ?? found.rMultiple ?? '');
+      setRiskPct(found.riskPct ?? '');
+      setClosedPnl(found.pnl ?? '');
+      setClosedRrr(found.closedRrr ?? '');
+      setLearnings(found.learnings || '');
+    } catch (e) {
+      console.error('Error loading trade:', e);
+    }
+  }, [idParam, isoDate]);
+
+  // Handle strategy change - only for NEW trades, not when editing
+  useEffect(() => {
+    // Skip if we're editing an existing trade
+    if (isEditing || idParam) return;
+    
+    if (!strategy) {
+      setChecklist([]);
+      return;
+    }
+    
+    const defs = [
+      'Price action aligns with bias',
+      'Higher timeframe support/resistance',
+      'Volatility profile acceptable',
+      'Risk defined (SL/TP)',
+    ];
+    const items = defs.map((t, i) => ({ id: `${Date.now()}-${i}`, text: t, done: false }));
+    setChecklist(items);
+  }, [strategy, isEditing, idParam]);
+
+  const handleFile = async (file?: File, target?: 'preSmall' | 'preLarge' | 'postSmall' | 'postLarge') => {
+    if (!file || !target) return;
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const compressed = await compressImage(dataUrl);
+      if (target === 'preSmall') setImageBeforeSmall(compressed);
+      if (target === 'preLarge') setImageBeforeLarge(compressed);
+      if (target === 'postSmall') setImageAfterSmall(compressed);
+      if (target === 'postLarge') setImageAfterLarge(compressed);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>, target: 'preSmall' | 'preLarge' | 'postSmall' | 'postLarge') => {
+    try {
+      const items = e.clipboardData?.items;
+      if (items) {
+        for (const it of Array.from(items)) {
+          if (it.type.includes('image')) {
+            const f = it.getAsFile();
+            if (f) {
+              await handleFile(f, target);
+              return;
+            }
+          }
+          if (it.type === 'text/html') {
+            const html = e.clipboardData.getData('text/html');
+            const m = html.match(/src=['"]([^'"]+)['"]/);
+            if (m) {
+              const u = m[1];
+              if (target === 'preSmall') setImageBeforeSmall(u);
+              if (target === 'preLarge') setImageBeforeLarge(u);
+              if (target === 'postSmall') setImageAfterSmall(u);
+              if (target === 'postLarge') setImageAfterLarge(u);
+              return;
+            }
+          }
+        }
+      }
+      const txt = e.clipboardData?.getData('text');
+      if (txt && (txt.startsWith('http') || txt.startsWith('data:'))) {
+        if (target === 'preSmall') setImageBeforeSmall(txt);
+        if (target === 'preLarge') setImageBeforeLarge(txt);
+        if (target === 'postSmall') setImageAfterSmall(txt);
+        if (target === 'postLarge') setImageAfterLarge(txt);
+      }
+    } catch (err) {
+      // ignore
+    }
+  };
+
+  const save = (close = false) => {
+    try {
+      const key = `cw_journal_${isoDate}`;
+      const raw = localStorage.getItem(key);
+      const curr = raw
+        ? (JSON.parse(raw) as any)
+        : { quickNote: "", trades: [], mood: 5, confidence: 5, lessons: "", attachments: [] };
+      if (!Array.isArray(curr.trades)) curr.trades = [];
+
+      const confirmations = checklist.filter((c) => c.done).length;
+      if (minRequired > 0 && confirmations < minRequired) {
+        alert(`Please confirm at least ${minRequired} items for strategy "${strategy}" before saving.`);
+        return;
+      }
+      if (close && !result) {
+        alert('Please select a result before closing the trade.');
+        return;
+      }
+
+      // derive cycle info for this isoDate from stored cycle settings
+      let cycleDay: number | null = null;
+      let cyclePhase: string | null = null;
+      try {
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const last = localStorage.getItem('cw_lastPeriodStart');
+        const avg = Number(localStorage.getItem('cw_avgCycleLength') || 28);
+        const per = Number(localStorage.getItem('cw_periodLength') || 5);
+        if (last) {
+          const d = new Date(isoDate);
+          const l = new Date(last);
+          const diff = Math.floor((d.getTime() - l.getTime()) / msPerDay);
+          const cd = (((diff % avg) + avg) % avg) + 1;
+          cycleDay = cd;
+          const follicularEnd = Math.min(per + 7, avg);
+          const ovulationEnd = Math.min(per + 11, avg);
+          cyclePhase = cd <= per ? 'menstruation' : cd <= follicularEnd ? 'follicular' : cd <= ovulationEnd ? 'ovulation' : 'luteal';
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      const newTrade: any = {
+        id: editingId || Date.now().toString(),
+        date: isoDate,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        instrument: instrument || 'Unknown',
+        direction,
+        entry: entryPrice === '' ? null : Number(entryPrice),
+        sl: slPrice === '' ? null : Number(slPrice),
+        tp: tpPrice === '' ? null : Number(tpPrice),
+        strategy: quick ? null : strategy || null,
+        checklist: checklist.map((c) => ({ text: c.text, done: c.done })),
+        preNote,
+        postNote,
+        image_before_small_tf: imageBeforeSmall || null,
+        image_before_large_tf: imageBeforeLarge || null,
+        image_after_small_tf: imageAfterSmall || null,
+        image_after_large_tf: imageAfterLarge || null,
+        emotion_before: emotionBefore,
+        emotion_after: emotionAfter,
+        timeframe: tfSmall,
+        tfSmall: tfSmall,
+        higher_timeframe: tfLarge,
+        tfLarge: tfLarge,
+        result: result || null,
+        loss_reason: result === 'loss' ? lossReason : null,
+        exit_reason: exitReason || null,
+        custom_exit_reason: exitReason === 'other' ? customExitReason : null,
+        pnl: closedPnl === '' ? null : Number(closedPnl),
+        rrr: rrr === '' ? null : Number(rrr),
+        riskPct: riskPct === '' ? null : Number(riskPct),
+        closedRrr: closedRrr === '' ? null : Number(closedRrr),
+        rMultiple: (close ? (closedRrr === '' ? (rrr === '' ? null : Number(rrr)) : Number(closedRrr)) : (rrr === '' ? null : Number(rrr))),
+        learnings: learnings || null,
+        rating: tradeRating || null,
+        status: close ? 'closed' : result ? 'closed' : 'open',
+        createdAt: Date.now(),
+        cycleDay: cycleDay,
+        cyclePhase: cyclePhase,
+      };
+
+      if (editingId) {
+        let replaced = false;
+        curr.trades = (curr.trades || []).map((t: any) => {
+          if (t.id === editingId) {
+            replaced = true;
+            return { ...t, ...newTrade, id: editingId };
+          }
+          return t;
+        });
+        if (!replaced) {
+          // fallback: if the id wasn't found, append to avoid data loss
+          curr.trades = [...curr.trades, { ...newTrade, id: editingId }];
+        }
+      } else {
+        // ensure id uniqueness
+        const id = Date.now().toString();
+        curr.trades = [...curr.trades, { ...newTrade, id }];
+      }
+      localStorage.setItem(key, JSON.stringify(curr));
+      // Trigger storage event for same-tab listeners
+      window.dispatchEvent(new Event('storage'));
+      navigate('/journal');
+    } catch (e: any) {
+      if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+        alert('Storage full! Try removing some old trades or using smaller images.');
+      } else {
+        console.error(e);
+      }
+    }
+  };
+
+  return (
+    <main className="pb-24 pt-20 lg:pl-64 lg:pt-8">
+      <div className="mx-auto max-w-7xl p-4 lg:p-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between border-b pb-6">
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-5">
+                <h1 className="text-3xl font-serif font-bold tracking-tight text-foreground">New Trade</h1>
+                <span className="text-lg text-muted-foreground font-medium">{isoDate}</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">Document your trade preparation and results</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button onClick={() => save(false)} className="rounded-full px-4 py-2 text-sm bg-gradient-to-r from-primary to-primary/70 text-primary-foreground shadow-soft">Save Trade</Button>
+              <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-full px-3 py-2 text-sm">Cancel</Button>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="my-5 flex gap-3 justify-center">
+              <button type="button" className={`rounded-full px-4 py-2 text-sm font-medium shadow-soft ${viewMode === 'before' ? 'bg-gradient-to-r from-primary to-primary/70 text-primary-foreground' : 'bg-muted/10 text-muted-foreground'}`} onClick={() => setViewMode('before')}>Before Trade</button>
+              <button type="button" className={`rounded-full px-4 py-2 text-sm font-medium shadow-soft ${viewMode === 'after' ? 'bg-gradient-to-r from-primary to-primary/70 text-primary-foreground' : 'bg-muted/10 text-muted-foreground'}`} onClick={() => setViewMode('after')}>After Trade</button>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-12">
+              <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
+                {viewMode === 'before' ? (
+                  <>
+                    <section className="rounded-2xl border p-4 bg-card shadow-soft">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-serif text-xl font-semibold text-foreground">Strategy</h4>
+                        <label className="text-sm flex items-center gap-2">
+                          <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} />
+                          <span className="text-xs text-muted-foreground">Quick</span>
+                        </label>
+                      </div>
+
+                      <div className="mt-3 grid gap-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex items-center gap-2">
+                            <button type="button" onClick={() => setDirection('long')} className={`flex-1 rounded-full py-2 text-sm font-medium ${direction === 'long' ? 'bg-accent/30 text-accent-foreground' : 'bg-muted/10 text-muted-foreground'}`}>
+                              Long
+                            </button>
+                            <button type="button" onClick={() => setDirection('short')} className={`flex-1 rounded-full py-2 text-sm font-medium ${direction === 'short' ? 'bg-destructive/10 text-destructive' : 'bg-muted/10 text-muted-foreground'}`}>
+                              Short
+                            </button>
+                          </div>
+                          <Input value={instrument} onChange={(e) => setInstrument(e.target.value)} placeholder="Instrument (e.g. EUR/USD)" />
+                        </div>
+
+                        <Select onValueChange={(v) => setStrategy(v === '__none' ? '' : v)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder={strategy || 'Choose strategy'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">Quick Trade (no strategy)</SelectItem>
+                            {strategies.map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {strategy && <div className="text-sm text-muted-foreground">Min confirmations required: <strong>{minRequired}</strong></div>}
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border p-4 bg-card shadow-soft">
+                      <h4 className="font-serif text-xl font-semibold text-foreground">Confirmations</h4>
+                      <div className="mt-3 text-xs text-muted-foreground mb-2">Mark the confirmations you observed before entering.</div>
+                      <div className="space-y-2">
+                        {checklist.map((c, idx) => (
+                          <label key={c.id} className="flex items-start gap-3">
+                            <Checkbox checked={c.done} onCheckedChange={(v) => {
+                              const copy = [...checklist];
+                              copy[idx] = { ...copy[idx], done: Boolean(v) };
+                              setChecklist(copy);
+                            }} />
+                            <span className="text-sm text-muted-foreground">{c.text}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border p-4 bg-card shadow-soft flex-1 flex flex-col">
+                      <h4 className="font-serif text-xl font-semibold text-foreground">Risk</h4>
+                      <div className="mt-3 grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1.5 block">RRR</label>
+                          <Input type="number" value={rrr as any} onChange={(e) => setRrr(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter RRR" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1.5 block">Risk %</label>
+                          <div className="relative">
+                            <Input type="number" value={riskPct as any} onChange={(e) => setRiskPct(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter Risk" />
+                            {riskPct !== '' && <span className="absolute right-12 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">%</span>}
+                          </div>
+                        </div>
+                        <div />
+                      </div>
+                      <div className="mt-4">
+                        <label className="text-sm">Notes</label>
+                        <Textarea value={preNote} onChange={(e) => setPreNote(e.target.value)} className="min-h-[100px]" />
+                      </div>
+                    </section>
+                  </>
+                ) : (
+                  <>
+                    <section className="rounded-2xl border p-4 bg-card shadow-soft flex-1 flex flex-col">
+                      <h4 className="font-serif text-xl font-semibold text-foreground">Execution</h4>
+                      <div className="mt-3 grid gap-3">
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => setResult('win')} className={`flex-1 rounded-md py-2 text-sm font-medium ${result === 'win' ? 'bg-accent/30 text-accent-foreground' : 'bg-muted/10 text-muted-foreground'}`}>Win</button>
+                          <button type="button" onClick={() => setResult('breakeven')} className={`flex-1 rounded-md py-2 text-sm font-medium ${result === 'breakeven' ? 'bg-muted/30 text-muted-foreground' : 'bg-muted/10 text-muted-foreground'}`}>Breakeven</button>
+                          <button type="button" onClick={() => setResult('loss')} className={`flex-1 rounded-md py-2 text-sm font-medium ${result === 'loss' ? 'bg-destructive/10 text-destructive' : 'bg-muted/10 text-muted-foreground'}`}>Loss</button>
+                        </div>
+
+                        {result === 'win' && (
+                          <>
+                            <div className="mt-3">
+                              <label className="text-xs text-muted-foreground mb-1.5 block">Exit Reason</label>
+                              <Select onValueChange={(v) => setExitReason(v)} value={exitReason}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select exit reason" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {defaultWinReasons.map((reason) => (
+                                    <SelectItem key={reason} value={reason} className="relative">
+                                      <span className="block truncate pr-10">{reason}</span>
+                                      <button
+                                        type="button"
+                                        onPointerDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          removeDefaultWinReason(reason);
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive text-lg"
+                                        title="Delete"
+                                      >
+                                        ×
+                                      </button>
+                                    </SelectItem>
+                                  ))}
+                                  {customWinReasons.map((reason) => (
+                                    <SelectItem key={reason} value={reason} className="relative">
+                                      <span className="block truncate pr-10">{reason}</span>
+                                      <button
+                                        type="button"
+                                        onPointerDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          removeCustomWinReason(reason);
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive text-lg"
+                                        title="Delete"
+                                      >
+                                        ×
+                                      </button>
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem value="other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {exitReason === 'other' && (
+                              <div className="mt-3">
+                                <label className="text-xs text-muted-foreground mb-1.5 block">Add Custom Win Reason</label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    value={newWinReason}
+                                    onChange={(e) => setNewWinReason(e.target.value)}
+                                    placeholder="Enter new reason"
+                                    onKeyDown={(e) => e.key === 'Enter' && addCustomWinReason()}
+                                  />
+                                  <Button onClick={addCustomWinReason} type="button" className="px-3 whitespace-nowrap">
+                                    Add
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {exitReason === 'other' && (
+                              <div className="mt-3">
+                                <Input 
+                                  value={customExitReason} 
+                                  onChange={(e) => setCustomExitReason(e.target.value)} 
+                                  placeholder="Specify custom exit reason" 
+                                />
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {result === 'loss' && (
+                          <>
+                            <div className="mt-3">
+                              <label className="text-xs text-muted-foreground mb-1.5 block">SL Reason</label>
+                              <Select onValueChange={(v) => setExitReason(v)} value={exitReason}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select SL reason" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {defaultLossReasons.map((reason) => (
+                                    <SelectItem key={reason} value={reason} className="relative">
+                                      <span className="block truncate pr-10">{reason}</span>
+                                      <button
+                                        type="button"
+                                        onPointerDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          removeDefaultLossReason(reason);
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive text-lg"
+                                        title="Delete"
+                                      >
+                                        ×
+                                      </button>
+                                    </SelectItem>
+                                  ))}
+                                  {customLossReasons.map((reason) => (
+                                    <SelectItem key={reason} value={reason} className="relative">
+                                      <span className="block truncate pr-10">{reason}</span>
+                                      <button
+                                        type="button"
+                                        onPointerDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          removeCustomLossReason(reason);
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive text-lg"
+                                        title="Delete"
+                                      >
+                                        ×
+                                      </button>
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem value="other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {exitReason === 'other' && (
+                              <div className="mt-3">
+                                <label className="text-xs text-muted-foreground mb-1.5 block">Add Custom Loss Reason</label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    value={newLossReason}
+                                    onChange={(e) => setNewLossReason(e.target.value)}
+                                    placeholder="Enter new reason"
+                                    onKeyDown={(e) => e.key === 'Enter' && addCustomLossReason()}
+                                  />
+                                  <Button onClick={addCustomLossReason} type="button" className="px-3 whitespace-nowrap">
+                                    Add
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {exitReason === 'other' && (
+                              <div className="mt-3">
+                                <Input 
+                                  value={customExitReason} 
+                                  onChange={(e) => setCustomExitReason(e.target.value)} 
+                                  placeholder="Specify custom SL reason" 
+                                />
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1.5 block">PnL (closed)</label>
+                            <Input type="number" value={closedPnl as any} onChange={(e) => setClosedPnl(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter PnL" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1.5 block">RR (closed)</label>
+                            <Input type="number" value={closedRrr as any} onChange={(e) => setClosedRrr(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter RR" />
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <label className="text-sm">Learnings / Improvements</label>
+                          <Textarea value={learnings} onChange={(e) => setLearnings(e.target.value)} className="min-h-[120px]" placeholder="What would you do differently next time?" />
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground">Small TF</label>
+                            <Select onValueChange={(v) => setTfSmall(v)}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={tfSmall} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1m">1m</SelectItem>
+                                <SelectItem value="5m">5m</SelectItem>
+                                <SelectItem value="15m">15m</SelectItem>
+                                <SelectItem value="1h">1h</SelectItem>
+                                <SelectItem value="4h">4h</SelectItem>
+                                <SelectItem value="1D">1D</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Context TF</label>
+                            <Select onValueChange={(v) => setTfLarge(v)}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={tfLarge} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1m">1m</SelectItem>
+                                <SelectItem value="5m">5m</SelectItem>
+                                <SelectItem value="15m">15m</SelectItem>
+                                <SelectItem value="1h">1h</SelectItem>
+                                <SelectItem value="4h">4h</SelectItem>
+                                <SelectItem value="1D">1D</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border p-4 bg-card shadow-soft">
+                      <h4 className="font-serif text-xl font-semibold text-foreground">Trade Rating</h4>
+                      <div className="mt-3 text-xs text-muted-foreground mb-3">How would you rate this trade overall?</div>
+                      <div className="flex items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setTradeRating(star)}
+                            className="text-3xl transition-all hover:scale-110 focus:outline-none"
+                            style={{ color: star <= tradeRating ? '#fbbf24' : '#d1d5db' }}
+                          >
+                            ★
+                          </button>
+                        ))}
+                      </div>
+                      {tradeRating > 0 && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          Rating: {tradeRating} / 5
+                        </div>
+                      )}
+                    </section>
+                  </>
+                )}
+              </div>
+
+              <div className="col-span-12 lg:col-span-4 space-y-6">
+                {viewMode === 'before' ? (
+                  <>
+                      <div className="rounded-2xl border p-6 bg-card shadow-soft flex flex-col gap-4">
+                        <div className="flex items-start justify-between">
+                          <label className="text-sm font-medium text-foreground">Before Screenshot — Small TF (Entry)</label>
+                          <div className="w-32">
+                            <Select onValueChange={(v) => setTfSmall(v)}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={tfSmall} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1m">1m</SelectItem>
+                                <SelectItem value="5m">5m</SelectItem>
+                                <SelectItem value="15m">15m</SelectItem>
+                                <SelectItem value="1h">1h</SelectItem>
+                                <SelectItem value="4h">4h</SelectItem>
+                                <SelectItem value="1D">1D</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        {!imageBeforeSmall ? (
+                          <div className="rounded-lg border-dashed border-2 border-border/30 p-8 text-center text-sm text-muted-foreground bg-muted/5 min-h-[160px] flex items-center justify-center">Click to upload or paste<br/>PNG, JPG up to 10MB</div>
+                        ) : (
+                          <div className="relative">
+                            <img 
+                              src={imageBeforeSmall} 
+                              alt="pre-small" 
+                              className="w-full h-40 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity" 
+                              onClick={() => setPreviewImage(imageBeforeSmall)}
+                            />
+                            <button type="button" aria-label="Remove" onClick={() => setImageBeforeSmall(null)} className="absolute top-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-sm font-bold shadow">×</button>
+                          </div>
+                        )}
+                        {!imageBeforeSmall && (
+                          <div className="mt-2 grid gap-2">
+                            <div className="flex gap-2">
+                              <Input className="flex-1 min-w-0" placeholder="Paste chart image URL" value={preSmallUrl} onChange={(e) => setPreSmallUrl(e.target.value)} />
+                              <Button onClick={() => { if (preSmallUrl) setImageBeforeSmall(preSmallUrl); }} className="px-3 whitespace-nowrap">Use</Button>
+                            </div>
+                            <div>
+                              <label className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm border rounded-md hover:bg-muted/50 transition-colors">
+                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0], 'preSmall')} />
+                                Choose File
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl border p-6 bg-card shadow-soft flex flex-col gap-4">
+                      <div className="flex items-start justify-between">
+                        <label className="text-sm font-medium text-foreground">Before Screenshot — Large TF (Context)</label>
+                        <div className="w-32">
+                          <Select onValueChange={(v) => setTfLarge(v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={tfLarge} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1m">1m</SelectItem>
+                              <SelectItem value="5m">5m</SelectItem>
+                              <SelectItem value="15m">15m</SelectItem>
+                              <SelectItem value="1h">1h</SelectItem>
+                              <SelectItem value="4h">4h</SelectItem>
+                              <SelectItem value="1D">1D</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {!imageBeforeLarge ? (
+                        <div className="rounded-lg border-dashed border-2 border-border/30 p-8 text-center text-sm text-muted-foreground bg-muted/5 min-h-[160px] flex items-center justify-center">Click to upload or paste<br/>PNG, JPG up to 10MB</div>
+                      ) : (
+                        <div className="relative">
+                          <img 
+                            src={imageBeforeLarge} 
+                            alt="pre-large" 
+                            className="w-full h-40 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity" 
+                            onClick={() => setPreviewImage(imageBeforeLarge)}
+                          />
+                          <button type="button" aria-label="Remove" onClick={() => setImageBeforeLarge(null)} className="absolute top-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-sm font-bold shadow">×</button>
+                        </div>
+                      )}
+                      {!imageBeforeLarge && (
+                        <div className="mt-2 grid gap-2">
+                          <div className="flex gap-2">
+                            <Input className="flex-1 min-w-0" placeholder="Paste chart image URL" value={preLargeUrl} onChange={(e) => setPreLargeUrl(e.target.value)} />
+                            <Button onClick={() => { if (preLargeUrl) setImageBeforeLarge(preLargeUrl); }} className="px-3 whitespace-nowrap">Use</Button>
+                          </div>
+                          <div>
+                            <label className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm border rounded-md hover:bg-muted/50 transition-colors">
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0], 'preLarge')} />
+                              Choose File
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                      </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border p-6 bg-card shadow-soft flex flex-col gap-4">
+                      <div className="flex items-start justify-between">
+                        <label className="text-sm font-medium text-foreground">After Screenshot — Small TF (Result)</label>
+                        <div className="w-32">
+                          <Select onValueChange={(v) => setTfSmall(v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={tfSmall} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1m">1m</SelectItem>
+                              <SelectItem value="5m">5m</SelectItem>
+                              <SelectItem value="15m">15m</SelectItem>
+                              <SelectItem value="1h">1h</SelectItem>
+                              <SelectItem value="4h">4h</SelectItem>
+                              <SelectItem value="1D">1D</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {!imageAfterSmall ? (
+                        <div className="rounded-lg border-dashed border-2 border-border/30 p-8 text-center text-sm text-muted-foreground bg-muted/5 min-h-[160px] flex items-center justify-center">Click to upload or paste<br/>PNG, JPG up to 10MB</div>
+                      ) : (
+                        <div className="relative">
+                          <img 
+                            src={imageAfterSmall} 
+                            alt="after-small" 
+                            className="w-full h-40 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity" 
+                            onClick={() => setPreviewImage(imageAfterSmall)}
+                          />
+                          <button type="button" aria-label="Remove" onClick={() => setImageAfterSmall(null)} className="absolute top-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-sm font-bold shadow">×</button>
+                        </div>
+                      )}
+                      {!imageAfterSmall && (
+                        <div className="mt-2 grid gap-2">
+                          <div className="flex gap-2">
+                            <Input className="flex-1 min-w-0" placeholder="Paste chart image URL" value={postSmallUrl} onChange={(e) => setPostSmallUrl(e.target.value)} />
+                            <Button onClick={() => { if (postSmallUrl) setImageAfterSmall(postSmallUrl); }} className="px-3 whitespace-nowrap">Use</Button>
+                          </div>
+                          <div>
+                            <label className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm border rounded-md hover:bg-muted/50 transition-colors">
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0], 'postSmall')} />
+                              Choose File
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border p-6 bg-card shadow-soft flex flex-col gap-4">
+                      <div className="flex items-start justify-between">
+                        <label className="text-sm font-medium text-foreground">After Screenshot — Large TF (Context)</label>
+                        <div className="w-32">
+                          <Select onValueChange={(v) => setTfLarge(v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={tfLarge} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1m">1m</SelectItem>
+                              <SelectItem value="5m">5m</SelectItem>
+                              <SelectItem value="15m">15m</SelectItem>
+                              <SelectItem value="1h">1h</SelectItem>
+                              <SelectItem value="4h">4h</SelectItem>
+                              <SelectItem value="1D">1D</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {!imageAfterLarge ? (
+                        <div className="rounded-lg border-dashed border-2 border-border/30 p-8 text-center text-sm text-muted-foreground bg-muted/5 min-h-[160px] flex items-center justify-center">Click to upload or paste<br/>PNG, JPG up to 10MB</div>
+                      ) : (
+                        <div className="relative">
+                          <img 
+                            src={imageAfterLarge} 
+                            alt="after-large" 
+                            className="w-full h-40 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity" 
+                            onClick={() => setPreviewImage(imageAfterLarge)}
+                          />
+                          <button type="button" aria-label="Remove" onClick={() => setImageAfterLarge(null)} className="absolute top-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-sm font-bold shadow">×</button>
+                        </div>
+                      )}
+                      {!imageAfterLarge && (
+                        <div className="mt-2 grid gap-2">
+                          <div className="flex gap-2">
+                            <Input className="flex-1 min-w-0" placeholder="Paste chart image URL" value={postLargeUrl} onChange={(e) => setPostLargeUrl(e.target.value)} />
+                            <Button onClick={() => { if (postLargeUrl) setImageAfterLarge(postLargeUrl); }} className="px-3 whitespace-nowrap">Use</Button>
+                          </div>
+                          <div>
+                            <label className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm border rounded-md hover:bg-muted/50 transition-colors">
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0], 'postLarge')} />
+                              Choose File
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            </CardContent>
+        </Card>
+      </div>
+
+      {previewImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" 
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-7xl max-h-full">
+            <img 
+              src={previewImage} 
+              alt="Preview" 
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button 
+              type="button" 
+              onClick={() => setPreviewImage(null)} 
+              className="absolute top-4 right-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-lg font-bold shadow-lg hover:bg-white transition-colors"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog?.show && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" 
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div 
+            className="bg-card rounded-2xl shadow-2xl border max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-serif font-semibold text-foreground mb-3">Confirm Delete</h3>
+            <p className="text-sm text-muted-foreground mb-6">{confirmDialog.message}</p>
+            <div className="flex gap-3 justify-end">
+              <Button 
+                variant="ghost" 
+                onClick={() => setConfirmDialog(null)}
+                className="rounded-full px-4"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={confirmDialog.onConfirm}
+                className="rounded-full px-4 bg-gradient-to-r from-destructive to-destructive/70 text-destructive-foreground hover:from-destructive/90 hover:to-destructive/60"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

@@ -22,6 +22,8 @@ export default function Profile() {
   const [email, setEmail] = useState("");
   const [timezone, setTimezone] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("");
+  const [showChangeEmail, setShowChangeEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -103,8 +105,15 @@ export default function Profile() {
   const saveProfile = async () => {
     setLoading(true);
     try {
+      // Prüfe, ob Session/Token noch gültig ist
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({ title: "Session expired", description: "Please log in again to update your profile." });
+        setLoading(false);
+        return;
+      }
+      // Nur user_metadata aktualisieren, außer Passwort explizit gesetzt
       const update: Record<string, unknown> = {
-        email,
         data: { name, phone, timezone, experienceLevel },
       };
       if (password) (update as any).password = password;
@@ -116,7 +125,11 @@ export default function Profile() {
     } catch (err: unknown) {
       console.error(err);
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ title: "Save failed", description: msg });
+      if (msg.includes('Bearer token')) {
+        toast({ title: "Session expired", description: "Please log in again to update your profile." });
+      } else {
+        toast({ title: "Save failed", description: msg });
+      }
     } finally {
       setLoading(false);
     }
@@ -172,9 +185,54 @@ export default function Profile() {
 
             <div>
               <label className="text-sm font-medium text-foreground">Email</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" />
+              <div className="mt-1.5 flex items-center gap-3">
+                <span className="text-base text-foreground">{email}</span>
+                <Button variant="outline" size="sm" onClick={() => setShowChangeEmail(true)}>Change email</Button>
+              </div>
             </div>
 
+            {/* Change Email Dialog */}
+            <Dialog open={showChangeEmail} onOpenChange={setShowChangeEmail}>
+              <DialogTrigger asChild><span /></DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Change email</DialogTitle>
+                  <DialogDescription>Enter your new email address. You will receive a confirmation link.</DialogDescription>
+                </DialogHeader>
+                <div className="mt-4 space-y-3">
+                  <label className="text-sm">New email</label>
+                  <Input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="mt-1" />
+                </div>
+                <DialogFooter>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" onClick={() => setShowChangeEmail(false)}>Cancel</Button>
+                    <Button
+                      onClick={async () => {
+                        if (!newEmail) {
+                          toast({ title: "No email", description: "Please enter a new email address." });
+                          return;
+                        }
+                        setLoading(true);
+                        try {
+                          const { error } = await supabase.auth.updateUser({ email: newEmail });
+                          if (error) throw error;
+                          toast({ title: "Email updated", description: "Check your new email for a confirmation link." });
+                          setEmail(newEmail);
+                          setShowChangeEmail(false);
+                        } catch (err) {
+                          const msg = err instanceof Error ? err.message : String(err);
+                          toast({ title: "Change failed", description: msg });
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                    >
+                      Change email
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-foreground">Timezone</label>

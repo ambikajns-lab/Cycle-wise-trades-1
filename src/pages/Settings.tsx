@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { User, Bell, Shield, Download, Trash2, Calendar, Sun, Moon } from "lucide-react";
+import { User, Bell, Shield, Download, Trash2, Calendar, Sun, Moon, Building2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +80,30 @@ export default function Settings() {
               <Switch checked={isDark} onCheckedChange={(v) => toggleTheme(Boolean(v))} />
               <Sun className="h-4 w-4 text-muted-foreground" />
             </div>
+          </div>
+        </motion.section>
+
+        {/* Prop Firm Integrations - Link to dedicated page */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mb-8 rounded-2xl bg-card p-6 shadow-card"
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="rounded-xl bg-blue-500/20 p-2.5">
+              <Building2 className="h-5 w-5 text-blue-600" />
+            </div>
+            <h2 className="font-semibold text-foreground">Prop Firm Accounts</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">Verbinde deine MT4/MT5 Prop Firm Accounts für automatische Trade-Synchronisierung.</p>
+          <div className="mt-4">
+            <Link to="/prop-firms">
+              <Button variant="outline">
+                <Building2 className="h-4 w-4 mr-2" />
+                Prop Firms verwalten
+              </Button>
+            </Link>
           </div>
         </motion.section>
 

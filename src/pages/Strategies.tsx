@@ -52,10 +52,16 @@ export default function Strategies() {
             <h1 className="font-serif text-2xl font-bold text-foreground lg:text-3xl">Strategy Builder</h1>
             <p className="mt-1 text-muted-foreground">Define, track, and optimize your trading strategies</p>
           </div>
-          <Button variant="hero">
-            <Plus className="h-4 w-4" />
-            New Strategy
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="hero" onClick={() => window.location.href = '/strategies/list'}>
+              <Plus className="h-4 w-4" />
+              Manage strategies
+            </Button>
+            <Button variant="outline">
+              <Plus className="h-4 w-4" />
+              New Strategy
+            </Button>
+          </div>
         </div>
 
         {/* Strategy Cards */}

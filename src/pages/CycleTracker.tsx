@@ -25,10 +25,10 @@ type DayData = {
 const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const cyclePhases = [
-  { name: "Menstruation", days: "1-5", color: "bg-red-100/40 border-red-300", description: "Bleeding and low energy.", icon: Info },
-  { name: "Follicular", days: "6-12", color: "bg-yellow-100/40 border-yellow-300", description: "Rising energy and focus.", icon: Info },
-  { name: "Ovulation", days: "13-16", color: "bg-green-100/40 border-green-300", description: "Peak energy and social drive.", icon: Info },
-  { name: "Luteal", days: "17-28", color: "bg-indigo-100/30 border-indigo-300", description: "Pre-menstrual phase, possible irritability.", icon: Info },
+  { name: "Menstruation", days: "1-5", color: "bg-cycle-menstruation/30 border-cycle-menstruation", description: "Bleeding and low energy.", icon: Info },
+  { name: "Follicular", days: "6-12", color: "bg-cycle-follicular/30 border-cycle-follicular", description: "Rising energy and focus.", icon: Info },
+  { name: "Ovulation", days: "13-16", color: "bg-cycle-ovulation/30 border-cycle-ovulation", description: "Peak energy and social drive.", icon: Info },
+  { name: "Luteal", days: "17-28", color: "bg-cycle-luteal/30 border-cycle-luteal", description: "Pre-menstrual phase, possible irritability.", icon: Info },
 ];
 
 // Calendar data generator using settings
@@ -75,7 +75,7 @@ const generateCalendarData = (year: number, monthIndex: number, avgCycleLength: 
 
 export default function CycleTracker() {
   const [currentMonth] = useState("January 2025");
-  const [selectedDay, setSelectedDay] = useState<number | null>(8);
+  const [selectedDay, setSelectedDay] = useState<number | null>(() => new Date().getDate());
   const navigate = useNavigate();
   const [safetyModeEnabled, setSafetyModeEnabled] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -85,7 +85,37 @@ export default function CycleTracker() {
   const [variationDays, setVariationDays] = useState<number>(2);
   const [periodLength, setPeriodLength] = useState<number>(5);
   const [periodDays, setPeriodDays] = useState<string[]>([]);
+  const [loggedPeriodDays, setLoggedPeriodDays] = useState<string[]>([]);
   const [isDirty, setIsDirty] = useState<boolean>(false);
+
+  // Helper: Find the start of the most recent period from logged days
+  const findLastPeriodStartFromLogs = (loggedDays: string[]): string | null => {
+    if (loggedDays.length === 0) return null;
+    
+    // Sort dates descending (newest first)
+    const sorted = [...loggedDays].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    
+    // Find consecutive period days starting from the most recent
+    // Walk backwards to find the start of the current/last period
+    let currentPeriodStart = sorted[0];
+    const msPerDay = 1000 * 60 * 60 * 24;
+    
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const current = new Date(sorted[i]).getTime();
+      const next = new Date(sorted[i + 1]).getTime();
+      const diff = current - next;
+      
+      // If days are consecutive (1 day apart), continue
+      if (diff <= msPerDay * 1.5) {
+        currentPeriodStart = sorted[i + 1];
+      } else {
+        // Gap found - we have the start of the most recent period
+        break;
+      }
+    }
+    
+    return currentPeriodStart;
+  };
 
   // load saved settings from localStorage on mount
   useEffect(() => {
@@ -104,9 +134,63 @@ export default function CycleTracker() {
       if (pd) {
         try { setPeriodDays(JSON.parse(pd)); } catch { setPeriodDays([]); }
       }
+      
+      // Load logged period days from journal entries
+      const logged: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('cw_journal_')) {
+          try {
+            const journal = JSON.parse(localStorage.getItem(key) || '{}');
+            if (journal.hasPeriod) {
+              const dateStr = key.replace('cw_journal_', '');
+              logged.push(dateStr);
+            }
+          } catch { /* ignore */ }
+        }
+      }
+      setLoggedPeriodDays(logged);
+      
+      // Auto-update lastPeriodStart based on logged period days
+      const detectedStart = findLastPeriodStartFromLogs(logged);
+      if (detectedStart) {
+        setLastPeriodStart(detectedStart);
+        localStorage.setItem('cw_lastPeriodStart', detectedStart);
+      }
     } catch (e) {
       // ignore storage errors
     }
+  }, []);
+
+  // Reload logged period days when returning to this page (e.g. after logging period on Day page)
+  useEffect(() => {
+    const reloadLoggedPeriods = () => {
+      const logged: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('cw_journal_')) {
+          try {
+            const journal = JSON.parse(localStorage.getItem(key) || '{}');
+            if (journal.hasPeriod) {
+              const dateStr = key.replace('cw_journal_', '');
+              logged.push(dateStr);
+            }
+          } catch { /* ignore */ }
+        }
+      }
+      setLoggedPeriodDays(logged);
+      
+      // Auto-update lastPeriodStart
+      const detectedStart = findLastPeriodStartFromLogs(logged);
+      if (detectedStart) {
+        setLastPeriodStart(detectedStart);
+        localStorage.setItem('cw_lastPeriodStart', detectedStart);
+      }
+    };
+
+    // Reload when window gets focus (user comes back from Day page)
+    window.addEventListener('focus', reloadLoggedPeriods);
+    return () => window.removeEventListener('focus', reloadLoggedPeriods);
   }, []);
 
   const saveSettings = () => {
@@ -131,13 +215,14 @@ export default function CycleTracker() {
   const calendarMonthIndex = displayedDate.getMonth();
   const currentMonthLabel = `${monthNames[calendarMonthIndex]} ${calendarYear}`;
 
+  const [todayDate, setTodayDate] = useState<Date>(() => new Date());
+
   // generate calendar with the (possibly) loaded settings (periodLength affects phases)
   const calendarData = generateCalendarData(calendarYear, calendarMonthIndex, avgCycleLength, lastPeriodStart, periodLength);
 
   // derived stats
   const msPerDay = 1000 * 60 * 60 * 24;
-  const today = new Date();
-  const currentCycleDay = lastPeriodStart ? (((Math.floor((today.getTime() - new Date(lastPeriodStart).getTime()) / msPerDay) % avgCycleLength) + avgCycleLength) % avgCycleLength) + 1 : null;
+  const currentCycleDay = lastPeriodStart ? (((Math.floor((todayDate.getTime() - new Date(lastPeriodStart).getTime()) / msPerDay) % avgCycleLength) + avgCycleLength) % avgCycleLength) + 1 : null;
   const nextPeriodIn = currentCycleDay ? (avgCycleLength - currentCycleDay + 1) : null;
   const tradesLogged = calendarData.reduce((s, d) => s + (d.trades || 0), 0);
 
@@ -148,12 +233,25 @@ export default function CycleTracker() {
 
   const selectedDayObj = selectedDay ? calendarData[selectedDay - 1] : null;
 
+  // keep `todayDate` updated (checks every minute) so the calendar highlights the correct day across midnight
+  useEffect(() => {
+    const id = setInterval(() => setTodayDate(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // if the displayed month/year contains today, ensure selectedDay follows today
+  useEffect(() => {
+    if (displayedDate.getFullYear() === todayDate.getFullYear() && displayedDate.getMonth() === todayDate.getMonth()) {
+      setSelectedDay(todayDate.getDate());
+    }
+  }, [displayedDate, todayDate]);
+
   const getPhaseColor = (phase: string) => {
     const colors = {
-      menstruation: "bg-cycle-menstruation/20 border-cycle-menstruation",
-      follicular: "bg-yellow-100/40 border-yellow-400",
-      ovulation: "bg-green-100/40 border-green-400",
-      luteal: "bg-cycle-luteal/20 border-cycle-luteal",
+      menstruation: "bg-cycle-menstruation/10 border-cycle-menstruation/30",
+      follicular: "bg-yellow-100/20 border-yellow-400/30",
+      ovulation: "bg-green-100/20 border-green-400/30",
+      luteal: "bg-cycle-luteal/10 border-cycle-luteal/30",
     };
     return colors[phase as keyof typeof colors];
   };
@@ -421,17 +519,20 @@ export default function CycleTracker() {
               ))}
               
               {calendarData.map((day) => {
-                const isTodayCell = isSameDay(day.date, today);
+                const isTodayCell = isSameDay(day.date, todayDate);
                 const dayIso = day.date.toISOString().slice(0,10);
                 const isPeriodDay = periodDays.includes(dayIso);
+                const isLoggedPeriod = loggedPeriodDays.includes(dayIso);
                 return (
                   <motion.button
                     key={day.day}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => { setSelectedDay(day.day); navigate(`/day/${day.date.toISOString().slice(0,10)}?journal=1`); }}
+                    onClick={() => { setSelectedDay(day.day); navigate(`/day/${dayIso}`); }}
                     className={`relative aspect-square rounded-xl border-2 transition-all ${
-                      getPhaseColor(day.phase)
+                      isLoggedPeriod 
+                        ? "bg-cycle-menstruation/30 border-cycle-menstruation" 
+                        : getPhaseColor(day.phase)
                     } ${selectedDay === day.day ? "ring-2 ring-primary ring-offset-2" : ""} ${isTodayCell ? 'ring-4 ring-primary/30' : ''}`}
                   >
                     <span className="text-sm font-medium text-foreground">{day.day}</span>
@@ -450,8 +551,8 @@ export default function CycleTracker() {
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    {isPeriodDay && (
-                      <div className="absolute bottom-1 left-1 rounded-md bg-red-100 px-1 text-xs text-red-700">Period</div>
+                    {isLoggedPeriod && (
+                      <div className="absolute bottom-1 left-1 rounded-md bg-cycle-menstruation/80 px-1 text-xs text-white font-medium">🩸</div>
                     )}
                     {day.trades > 0 && (
                       <>
@@ -567,7 +668,11 @@ export default function CycleTracker() {
                   </div>
                 </div>
 
-                <Button variant="outline" className="mt-6 w-full">
+                <Button 
+                  variant="outline" 
+                  className="mt-6 w-full"
+                  onClick={() => navigate(`/day/${todayDate.toISOString().slice(0, 10)}`)}
+                >
                   <Plus className="h-4 w-4" />
                   Log Today's Data
                 </Button>

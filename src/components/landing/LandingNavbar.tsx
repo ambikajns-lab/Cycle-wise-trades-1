@@ -15,8 +15,8 @@ const LandingNavbar = () => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
-      <nav className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-20 rounded-2xl mt-4 px-6 bg-card/80 backdrop-blur-xl border border-border/50 shadow-soft">
+      <nav className="container mx-auto px-4 max-w-7xl">
+        <div className="flex items-center justify-between h-20 rounded-2xl mt-4 px-8 bg-card/80 backdrop-blur-xl border border-border/50 shadow-soft">
           {/* Logo */}
           <Link to="/landing" className="flex items-center gap-2">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
@@ -25,8 +25,8 @@ const LandingNavbar = () => {
             <span className="font-serif text-xl font-bold">SheTrades</span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8">
+          {/* Desktop Navigation - Centered */}
+          <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
             {navLinks.map((link) => (
               <a
                 key={link.label}

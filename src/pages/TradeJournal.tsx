@@ -1,31 +1,270 @@
 import { motion } from "framer-motion";
-import { Plus, Filter, Download, TrendingUp, TrendingDown, Search } from "lucide-react";
+import { Plus, Filter, Download, Upload, TrendingUp, TrendingDown, Search, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
-import { useLocation, Link } from "react-router-dom";
+import { useEffect, useState, lazy, Suspense, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
+const QuickTradeEntry = lazy(() => import("@/components/QuickTradeEntry").then((m) => ({ default: m.QuickTradeEntry })));
+import { useLocation, Link, useNavigate } from "react-router-dom";
 
-const mockTrades = [
-  { id: "1", date: "2025-01-24", time: "09:32", instrument: "EUR/USD", direction: "long", entry: 1.0845, sl: 1.0820, tp: 1.0895, result: "win", pnl: 450, rMultiple: 2.1, strategy: "ICT Silver Bullet", emotions: "Calm", cyclePhase: "Follicular", confirmations: 4 },
-  { id: "2", date: "2025-01-23", time: "14:15", instrument: "GBP/JPY", direction: "short", entry: 188.45, sl: 189.00, tp: 187.20, result: "loss", pnl: -215, rMultiple: -1, strategy: "SMC Sweep", emotions: "Anxious", cyclePhase: "Follicular", confirmations: 2 },
-  { id: "3", date: "2025-01-22", time: "10:00", instrument: "NAS100", direction: "long", entry: 17850, sl: 17800, tp: 17950, result: "win", pnl: 380, rMultiple: 1.5, strategy: "ICT Silver Bullet", emotions: "Focused", cyclePhase: "Ovulation", confirmations: 5 },
-  { id: "4", date: "2025-01-21", time: "15:45", instrument: "XAU/USD", direction: "short", entry: 2028, sl: 2035, tp: 2012, result: "breakeven", pnl: 0, rMultiple: 0, strategy: "SMC Sweep", emotions: "Neutral", cyclePhase: "Ovulation", confirmations: 3 },
-  { id: "5", date: "2025-01-20", time: "08:20", instrument: "EUR/USD", direction: "long", entry: 1.0890, sl: 1.0860, tp: 1.0950, result: "win", pnl: 520, rMultiple: 2.3, strategy: "ICT Silver Bullet", emotions: "Confident", cyclePhase: "Ovulation", confirmations: 5 },
-];
+// Load trades from localStorage keys `cw_journal_{YYYY-MM-DD}`
+const loadStoredTrades = (dateFilter: string) => {
+  try {
+    if (dateFilter) {
+      const raw = localStorage.getItem(`cw_journal_${dateFilter}`);
+      if (!raw) return [];
+      const data = JSON.parse(raw);
+      return (data.trades || []).map((t: any) => ({ ...t }));
+    }
+
+    const trades: any[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i) || "";
+      if (key.startsWith("cw_journal_")) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const data = JSON.parse(raw);
+          (data.trades || []).forEach((t: any) => trades.push(t));
+        } catch (e) {
+          // ignore parse errors
+        }
+      }
+    }
+    // fill missing cycle info for older entries
+    try {
+      const last = localStorage.getItem('cw_lastPeriodStart');
+      const avg = Number(localStorage.getItem('cw_avgCycleLength') || 28);
+      const per = Number(localStorage.getItem('cw_periodLength') || 5);
+      const msPerDay = 1000 * 60 * 60 * 24;
+      if (last) {
+        for (const t of trades) {
+          try {
+            if (!t.date) continue;
+            if (!t.cyclePhase || t.cycleDay == null) {
+              const d = new Date(t.date);
+              const l = new Date(last);
+              const diff = Math.floor((d.getTime() - l.getTime()) / msPerDay);
+              const cd = (((diff % avg) + avg) % avg) + 1;
+              const follicularEnd = Math.min(per + 7, avg);
+              const ovulationEnd = Math.min(per + 11, avg);
+              t.cycleDay = cd;
+              t.cyclePhase = cd <= per ? 'menstruation' : cd <= follicularEnd ? 'follicular' : cd <= ovulationEnd ? 'ovulation' : 'luteal';
+            }
+          } catch (e) {
+            // ignore per-item
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    return trades.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  } catch (e) {
+    return [];
+  }
+};
+
+// Parse MT4/MT5 CSV export
+const parseCSV = (content: string): any[] => {
+  const lines = content.split('\n').filter(l => l.trim());
+  const trades: any[] = [];
+  
+  // Detect format: MT4 HTML report or CSV
+  const isHTML = content.includes('<table') || content.includes('<tr');
+  
+  if (isHTML) {
+    // Parse MT4 HTML report
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, 'text/html');
+    const rows = doc.querySelectorAll('tr');
+    
+    rows.forEach((row) => {
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 8) {
+        const ticket = cells[0]?.textContent?.trim();
+        const openTime = cells[1]?.textContent?.trim();
+        const type = cells[2]?.textContent?.trim()?.toLowerCase();
+        const size = cells[3]?.textContent?.trim();
+        const symbol = cells[4]?.textContent?.trim();
+        const openPrice = cells[5]?.textContent?.trim();
+        const closePrice = cells[8]?.textContent?.trim();
+        const profit = cells[cells.length - 1]?.textContent?.trim();
+        
+        if (ticket && !isNaN(Number(ticket)) && (type === 'buy' || type === 'sell')) {
+          const pnl = parseFloat(profit?.replace(/[^\d.-]/g, '') || '0');
+          trades.push({
+            id: `mt4-${ticket}-${Date.now()}`,
+            instrument: symbol || 'Unknown',
+            direction: type,
+            entryPrice: parseFloat(openPrice || '0'),
+            exitPrice: parseFloat(closePrice || '0'),
+            positionSize: parseFloat(size || '0'),
+            pnl: pnl,
+            result: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven',
+            date: openTime?.split(' ')[0]?.replace(/\./g, '-') || new Date().toISOString().split('T')[0],
+            strategy: 'Imported',
+            notes: `MT4 Ticket #${ticket}`,
+            createdAt: Date.now(),
+          });
+        }
+      }
+    });
+  } else {
+    // Parse CSV format
+    const delimiter = lines[0]?.includes(';') ? ';' : ',';
+    const header = lines[0]?.toLowerCase() || '';
+    
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(delimiter).map(c => c.trim().replace(/^"|"$/g, ''));
+      if (cols.length < 4) continue;
+      
+      // Try to detect columns
+      let symbol = '', type = '', pnl = 0, date = '', size = 0, openPrice = 0, closePrice = 0;
+      
+      if (header.includes('symbol') || header.includes('ticket')) {
+        // Standard MT4/MT5 CSV
+        const headerCols = lines[0].split(delimiter).map(c => c.trim().toLowerCase().replace(/^"|"$/g, ''));
+        const symIdx = headerCols.findIndex(h => h.includes('symbol') || h.includes('item'));
+        const typeIdx = headerCols.findIndex(h => h.includes('type') || h.includes('direction'));
+        const profitIdx = headerCols.findIndex(h => h.includes('profit') || h.includes('pnl') || h.includes('p/l'));
+        const dateIdx = headerCols.findIndex(h => h.includes('time') || h.includes('date') || h.includes('open'));
+        const sizeIdx = headerCols.findIndex(h => h.includes('volume') || h.includes('lots') || h.includes('size'));
+        const openIdx = headerCols.findIndex(h => h.includes('open') && h.includes('price'));
+        const closeIdx = headerCols.findIndex(h => h.includes('close') && h.includes('price'));
+        
+        symbol = cols[symIdx] || cols[0] || 'Unknown';
+        type = (cols[typeIdx] || '').toLowerCase();
+        pnl = parseFloat(cols[profitIdx]?.replace(/[^\d.-]/g, '') || '0');
+        date = cols[dateIdx]?.split(' ')[0]?.replace(/\./g, '-') || new Date().toISOString().split('T')[0];
+        size = parseFloat(cols[sizeIdx] || '0');
+        openPrice = parseFloat(cols[openIdx] || '0');
+        closePrice = parseFloat(cols[closeIdx] || '0');
+      } else {
+        // Generic CSV - assume first few columns
+        symbol = cols[0] || 'Unknown';
+        type = (cols[1] || 'buy').toLowerCase();
+        pnl = parseFloat(cols[cols.length - 1]?.replace(/[^\d.-]/g, '') || '0');
+        date = new Date().toISOString().split('T')[0];
+      }
+      
+      if (symbol && (type.includes('buy') || type.includes('sell') || type.includes('long') || type.includes('short'))) {
+        trades.push({
+          id: `csv-${i}-${Date.now()}`,
+          instrument: symbol,
+          direction: type.includes('buy') || type.includes('long') ? 'buy' : 'sell',
+          entryPrice: openPrice,
+          exitPrice: closePrice,
+          positionSize: size,
+          pnl: pnl,
+          result: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven',
+          date: date,
+          strategy: 'Imported',
+          notes: 'CSV Import',
+          createdAt: Date.now() + i,
+        });
+      }
+    }
+  }
+  
+  return trades;
+};
+
+// Save imported trades to localStorage
+const saveImportedTrades = (newTrades: any[]) => {
+  // Group by date
+  const byDate: Record<string, any[]> = {};
+  newTrades.forEach(t => {
+    const d = t.date || new Date().toISOString().split('T')[0];
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(t);
+  });
+  
+  // Merge with existing trades for each date
+  Object.entries(byDate).forEach(([date, trades]) => {
+    const key = `cw_journal_${date}`;
+    const existing = JSON.parse(localStorage.getItem(key) || '{"trades":[]}');
+    existing.trades = [...(existing.trades || []), ...trades];
+    localStorage.setItem(key, JSON.stringify(existing));
+  });
+};
 
 export default function TradeJournal() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const dateFilter = params.get("date") || "";
+  const newOpen = params.get("new") === "1";
+  const strategyFilter = params.get("strategy") || "";
+  
+  console.log('TradeJournal dateFilter:', dateFilter, 'URL:', location.search);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [trades, setTrades] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
-  const filteredTrades = mockTrades
-    .filter(trade => 
-      trade.instrument.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      trade.strategy.toLowerCase().includes(searchQuery.toLowerCase())
+  // Export trades as CSV
+  const handleExport = () => {
+    if (trades.length === 0) {
+      toast({
+        title: "No trades yet",
+        description: "Add some trades first before exporting.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const headers = ['Date', 'Instrument', 'Direction', 'Entry Price', 'Exit Price', 'Position Size', 'P&L', 'Result', 'Strategy', 'Notes'];
+    const csvContent = [
+      headers.join(','),
+      ...trades.map(t => [
+        t.date || '',
+        t.instrument || '',
+        t.direction || '',
+        t.entryPrice || '',
+        t.exitPrice || '',
+        t.positionSize || '',
+        t.pnl || 0,
+        t.result || '',
+        t.strategy || '',
+        `"${(t.notes || '').replace(/"/g, '""')}"`
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `cyclewise-trades-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  useEffect(() => {
+    const loadTrades = () => setTrades(loadStoredTrades(dateFilter));
+    loadTrades();
+    // reload on storage events (works cross-tab and same-tab with custom event)
+    window.addEventListener('storage', loadTrades);
+    // Also listen for focus to catch any changes
+    window.addEventListener('focus', loadTrades);
+    return () => {
+      window.removeEventListener('storage', loadTrades);
+      window.removeEventListener('focus', loadTrades);
+    };
+  }, [dateFilter]);
+
+  const filteredTrades = trades
+    .filter((trade: any) =>
+      (trade.instrument || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (trade.strategy || '').toLowerCase().includes(searchQuery.toLowerCase())
     )
-    .filter(trade => (dateFilter ? trade.date === dateFilter : true));
+    .filter((trade: any) => (strategyFilter ? trade.strategy === strategyFilter : true))
+    .filter((trade: any) => (dateFilter ? trade.date === dateFilter : true));
 
   const getResultBadge = (result: string, pnl: number) => {
     const styles = {
@@ -59,11 +298,61 @@ export default function TradeJournal() {
             <p className="mt-1 text-muted-foreground">Track and analyze your trading performance</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" size="sm">
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".csv,.htm,.html,.txt"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setImporting(true);
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  try {
+                    const content = event.target?.result as string;
+                    const parsed = parseCSV(content);
+                    if (parsed.length > 0) {
+                      saveImportedTrades(parsed);
+                      setTrades(loadStoredTrades(dateFilter));
+                      toast({
+                        title: "Import successful",
+                        description: `${parsed.length} trades added to your journal.`,
+                      });
+                    } else {
+                      toast({
+                        title: "No trades found",
+                        description: "The file doesn't contain any recognizable trades.",
+                        variant: "destructive",
+                      });
+                    }
+                  } catch (err) {
+                    toast({
+                      title: "Import failed",
+                      description: "Couldn't read the file. Please try another format.",
+                      variant: "destructive",
+                    });
+                  }
+                  setImporting(false);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                };
+                reader.readAsText(file);
+              }}
+            />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+            >
+              <Upload className="h-4 w-4" />
+              {importing ? 'Importing...' : 'Import CSV'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="h-4 w-4" />
               Export
             </Button>
-            <Button variant="hero" size="sm">
+            <Button variant="hero" size="sm" onClick={() => navigate('/trade/new')}>
               <Plus className="h-4 w-4" />
               New Trade
             </Button>
@@ -91,6 +380,74 @@ export default function TradeJournal() {
             </motion.div>
           ))}
         </div>
+
+        {newOpen && (
+          <div className="mb-6">
+            <div className="rounded-2xl bg-card p-6">
+              <h3 className="font-semibold text-foreground">New Trade</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Add a quick trade for {dateFilter || 'selected date'}</p>
+              <div className="mt-4">
+                <Suspense fallback={<div className="rounded-2xl bg-card p-4 shadow-card" />}>
+                  <QuickTradeEntry
+                    safetyModeEnabled={false}
+                    onNewTrade={(t) => {
+                    if (dateFilter) {
+                      try {
+                        const key = `cw_journal_${dateFilter}`;
+                        const raw = localStorage.getItem(key);
+                        let curr: any = { quickNote: "", trades: [], mood: 5, confidence: 5, lessons: "", attachments: [] };
+                        if (raw) curr = JSON.parse(raw);
+                        // compute cycle info for this date
+                        const msPerDay = 1000 * 60 * 60 * 24;
+                        const last = localStorage.getItem('cw_lastPeriodStart');
+                        const avg = Number(localStorage.getItem('cw_avgCycleLength') || 28);
+                        const per = Number(localStorage.getItem('cw_periodLength') || 5);
+                        let cycleDay: number | null = null;
+                        let cyclePhase: string | null = null;
+                        try {
+                          if (last) {
+                            const d = new Date(dateFilter);
+                            const l = new Date(last);
+                            const diff = Math.floor((d.getTime() - l.getTime()) / msPerDay);
+                            const cd = (((diff % avg) + avg) % avg) + 1;
+                            cycleDay = cd;
+                            const follicularEnd = Math.min(per + 7, avg);
+                            const ovulationEnd = Math.min(per + 11, avg);
+                            cyclePhase = cd <= per ? 'menstruation' : cd <= follicularEnd ? 'follicular' : cd <= ovulationEnd ? 'ovulation' : 'luteal';
+                          }
+                        } catch (e) {
+                          // ignore
+                        }
+
+                        const newT = {
+                          id: Date.now().toString(),
+                          instrument: t.instrument || 'Unknown',
+                          direction: t.direction,
+                          rMultiple: t.rMultiple ?? null,
+                          pnl: t.pnl ?? null,
+                          strategy: t.strategy ?? '',
+                          date: dateFilter,
+                          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                          cycleDay,
+                          cyclePhase,
+                        };
+                        curr.trades = [...(curr.trades || []), newT];
+                        localStorage.setItem(key, JSON.stringify(curr));
+                        window.location.href = `/journal?date=${dateFilter}`;
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    } else {
+                      console.log('New trade', t);
+                      window.location.href = '/journal';
+                    }
+                  }}
+                />
+                </Suspense>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters & Search */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -133,6 +490,7 @@ export default function TradeJournal() {
                   <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</th>
                   <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Instrument</th>
                   <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Direction</th>
+                  <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Timeframes</th>
                   <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Result</th>
                   <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">R</th>
                   <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hidden lg:table-cell">Strategy</th>
@@ -148,6 +506,7 @@ export default function TradeJournal() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: index * 0.05 }}
                     className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/trade/new?date=${trade.date}&id=${trade.id}`)}
                   >
                     <td className="px-4 py-4">
                       <div>
@@ -164,6 +523,14 @@ export default function TradeJournal() {
                         {trade.direction}
                       </div>
                     </td>
+                    <td className="px-4 py-4 hidden lg:table-cell">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Small</span>
+                        <span className="text-sm font-medium">{trade.tfSmall || trade.tf || '—'}</span>
+                        <span className="text-xs text-muted-foreground">Context</span>
+                        <span className="text-sm font-medium">{trade.tfLarge || '—'}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-4">{getResultBadge(trade.result, trade.pnl)}</td>
                     <td className={`px-4 py-4 text-sm font-bold ${
                       trade.rMultiple > 0 ? "text-accent-foreground" : trade.rMultiple < 0 ? "text-destructive" : "text-muted-foreground"
@@ -174,18 +541,34 @@ export default function TradeJournal() {
                     <td className="px-4 py-4 hidden lg:table-cell">
                       <span className="text-xs text-muted-foreground">{trade.cyclePhase}</span>
                     </td>
-                    <td className="px-4 py-4 hidden xl:table-cell">
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <div
-                            key={i}
-                            className={`h-2 w-2 rounded-full ${
-                              i < trade.confirmations ? "bg-primary" : "bg-muted"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </td>
+                    <td className="px-6 py-6 hidden xl:table-cell">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1">
+                              {[...Array(4)].map((_, i) => {
+                                const doneCount = (trade.checklist || []).filter((c: any) => c.done).length;
+                                return (
+                                  <div
+                                    key={i}
+                                    className={`h-2 w-2 rounded-full ${
+                                      i < doneCount ? "bg-primary" : "bg-muted"
+                                    }`}
+                                  />
+                                );
+                              })}
+                            </div>
+                            {/* show up to two thumbnails from any image/link fields (postImg, tvLink, entryImg, exitImg, entryLink, exitLink) */}
+                            {([
+                              trade.postImg,
+                              trade.tvLink,
+                              trade.entryImg,
+                              trade.exitImg,
+                              trade.entryLink,
+                              trade.exitLink,
+                            ].filter(Boolean) as string[]).slice(0, 2).map((src, i) => (
+                              <img key={i} src={src} alt={`snap-${i}`} className="h-12 w-20 object-cover rounded-md border" />
+                            ))}
+                          </div>
+                        </td>
                   </motion.tr>
                 ))}
               </tbody>

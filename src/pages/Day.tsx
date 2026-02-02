@@ -1,13 +1,14 @@
 import { useParams, Link, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { motion } from "framer-motion";
-import { RecentTradesTable } from "@/components/RecentTradesTable";
+const RecentTradesTable = lazy(() => import("@/components/RecentTradesTable").then((m) => ({ default: m.RecentTradesTable })));
 import { CyclePhaseIndicator } from "@/components/CyclePhaseIndicator";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import Textarea from "@/components/ui/textarea";
-import { Plus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Plus, Droplets, Brain, Heart, Frown, Smile, Meh, Zap, Moon, Activity, HeartPulse } from "lucide-react";
 
 export default function Day() {
   const { day } = useParams<{ day: string }>();
@@ -23,14 +24,35 @@ export default function Day() {
   const dateObj = parseDate(day);
   const dayNum = dateObj.getDate();
 
-  // Simple phase calculation matching CycleTracker logic (using day number)
-  const phase = dayNum <= 5 ? "menstruation" : dayNum <= 12 ? "follicular" : dayNum <= 16 ? "ovulation" : "luteal";
+
+
+  // Load settings for accurate phase calculation
+  const [avgCycleLength, setAvgCycleLength] = useState<number>(28);
+  const [periodLength, setPeriodLength] = useState<number>(5);
+
+
+  // Calculate phase for this day (same logic as CycleTracker)
+  type CyclePhase = "menstruation" | "follicular" | "ovulation" | "luteal";
+  const msPerDay = 1000 * 60 * 60 * 24;
+  let phase: CyclePhase = "menstruation";
+
 
   const isoDate = dateObj.toISOString().slice(0, 10);
 
   const [lastPeriodStart, setLastPeriodStart] = useState<string | null>(null);
+
+  // Phase-Berechnung nach Deklaration
+  if (lastPeriodStart) {
+    const diff = Math.floor((dateObj.getTime() - new Date(lastPeriodStart).getTime()) / msPerDay);
+    const cycleDay = (((diff % avgCycleLength) + avgCycleLength) % avgCycleLength) + 1;
+    const follicularEnd = Math.min(periodLength + 7, avgCycleLength);
+    const ovulationEnd = Math.min(periodLength + 11, avgCycleLength);
+    if (cycleDay <= periodLength) phase = "menstruation";
+    else if (cycleDay <= follicularEnd) phase = "follicular";
+    else if (cycleDay <= ovulationEnd) phase = "ovulation";
+    else phase = "luteal";
+  }
   const [periodDays, setPeriodDays] = useState<string[]>([]);
-  const [journalOpen, setJournalOpen] = useState(false);
   const location = useLocation();
 
   type TradeEntry = {
@@ -40,6 +62,10 @@ export default function Day() {
     rMultiple?: number | null;
     pnl?: number | null;
     strategy?: string;
+    // optional fields to align with RecentTradesTable.Trade shape
+    date?: string;
+    result?: "win" | "loss" | "breakeven";
+    cyclePhase?: string;
   };
 
   type Journal = {
@@ -49,17 +75,71 @@ export default function Day() {
     confidence: number;
     lessons: string;
     attachments?: string[];
+    // Perioden-Tracking
+    hasPeriod: boolean;
+    flowIntensity: number; // 0 = keine, 1 = leicht, 2 = mittel, 3 = stark
+    // Trading-relevante Faktoren
+    energy: number;
+    focus: number;
+    stress: number;
+    sleepQuality: number;
+    cramps: number; // kann ablenken beim Traden
   };
 
-  const defaultJournal = (): Journal => ({ quickNote: "", trades: [], mood: 5, confidence: 5, lessons: "", attachments: [] });
+  const defaultJournal = (): Journal => ({ 
+    quickNote: "", 
+    trades: [], 
+    mood: 5, 
+    confidence: 5, 
+    lessons: "", 
+    attachments: [],
+    hasPeriod: false,
+    flowIntensity: 0,
+    energy: 5,
+    focus: 5,
+    stress: 5,
+    sleepQuality: 5,
+    cramps: 0,
+  });
   const [journal, setJournal] = useState<Journal>(defaultJournal());
+
+  // Map stored journal trades to the shape RecentTradesTable expects
+  type RecentTrade = {
+    id: string;
+    date: string;
+    instrument: string;
+    direction: "long" | "short";
+    result: "win" | "loss" | "breakeven";
+    rMultiple: number;
+    strategy: string;
+    cyclePhase: string;
+    // optional iso flag used by RecentTradesTable rendering
+    iso?: boolean;
+  };
+
+  const mappedTrades: RecentTrade[] = (journal.trades || []).map((t) => ({
+    id: t.id,
+    date: t.date || isoDate,
+    instrument: t.instrument || 'Unknown',
+    direction: t.direction,
+    result: (t as any).result || 'breakeven',
+    rMultiple: typeof t.rMultiple === 'number' && t.rMultiple !== null ? t.rMultiple : 0,
+    strategy: t.strategy || '',
+    cyclePhase: (t as any).cyclePhase || phase,
+    iso: !!t.date && /^\d{4}-\d{2}-\d{2}$/.test(t.date || ''),
+  }));
+
 
   useEffect(() => {
     try {
       const l = localStorage.getItem('cw_lastPeriodStart');
       const pd = localStorage.getItem('cw_periodDays');
+      const a = localStorage.getItem('cw_avgCycleLength');
+      const per = localStorage.getItem('cw_periodLength');
       if (l) setLastPeriodStart(l || null);
       if (pd) setPeriodDays(JSON.parse(pd));
+      if (a) setAvgCycleLength(Number(a));
+      if (per) setPeriodLength(Number(per));
     } catch (e) {
       // ignore
     }
@@ -69,21 +149,18 @@ export default function Day() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(`cw_journal_${isoDate}`);
-      if (raw) setJournal(JSON.parse(raw));
-      else setJournal({ quickNote: "", trades: [], mood: 5, confidence: 5, lessons: "", attachments: [] });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setJournal({ ...defaultJournal(), ...parsed });
+      } else {
+        setJournal(defaultJournal());
+      }
     } catch (e) {
-      setJournal({ quickNote: "", trades: [], mood: 5, confidence: 5, lessons: "", attachments: [] });
+      setJournal(defaultJournal());
     }
   }, [isoDate]);
 
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(location.search);
-      if (params.get("journal") === "1") setJournalOpen(true);
-    } catch (e) {
-      // ignore
-    }
-  }, [location.search]);
+  // If the app links here with `?journal=1` we could auto-scroll to the journal section.
 
   const saveJournal = (next?: Partial<Journal>) => {
     const newJ = { ...journal, ...next };
@@ -104,16 +181,7 @@ export default function Day() {
     }
   };
 
-  // Mock trades (small sample); in future replace with real data
-  const mockTrades = [
-    { id: "1", date: "Jan 24", instrument: "EUR/USD", direction: "long" as const, result: "win" as const, rMultiple: 2.1, strategy: "ICT", cyclePhase: "Follicular" },
-    { id: "2", date: "Jan 23", instrument: "GBP/JPY", direction: "short" as const, result: "loss" as const, rMultiple: -1, strategy: "SMC", cyclePhase: "Follicular" },
-    { id: "3", date: "Jan 22", instrument: "NAS100", direction: "long" as const, result: "win" as const, rMultiple: 1.5, strategy: "ICT", cyclePhase: "Ovulation" },
-    { id: "4", date: "Jan 21", instrument: "XAU/USD", direction: "short" as const, result: "breakeven" as const, rMultiple: 0, strategy: "SMC", cyclePhase: "Ovulation" },
-  ];
-
   const dayLabel = `January ${dayNum}`;
-  const filtered = mockTrades.filter(t => t.date.endsWith(String(dayNum)));
 
   return (
     <main className="pb-24 pt-20 lg:pl-64 lg:pt-8">
@@ -131,95 +199,244 @@ export default function Day() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            {filtered.length > 0 ? (
-              <RecentTradesTable trades={filtered} />
+            {journal.trades && journal.trades.length > 0 ? (
+              <div className="space-y-4">
+                <Suspense fallback={<div className="rounded-2xl bg-card p-5 shadow-card" />}>
+                  <RecentTradesTable trades={mappedTrades} />
+                </Suspense>
+                <Link to={`/trade/new?date=${isoDate}`} className="block">
+                  <Button variant="outline" className="w-full">
+                    <Plus className="mr-2 h-4 w-4" /> Add New Trade
+                  </Button>
+                </Link>
+              </div>
             ) : (
               <div className="rounded-2xl bg-card p-6 text-center">
                 <p className="text-muted-foreground">No trades logged for this day.</p>
+                <div className="mt-4">
+                  <Link to={`/trade/new?date=${isoDate}`}>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" /> Add New Trade
+                    </Button>
+                  </Link>
+                </div>
               </div>
             )}
           </div>
 
           <div className="space-y-6">
+
             <CyclePhaseIndicator
               phase={phase}
               day={dayNum}
-              recommendation={phase === "luteal" ? "Consider enabling Safety Mode on this day." : ""}
+              recommendation={
+                phase === "menstruation"
+                  ? (journal.hasPeriod
+                      ? ""
+                      : "You should have your period today. If your period started, please log it!")
+                  : (phase === "luteal" ? "Consider enabling Safety Mode on this day." : "")
+              }
             />
 
-            <div className="rounded-2xl bg-card p-6">
-              <h3 className="font-semibold text-foreground">Quick Actions</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Log a trade or add a note for {dayLabel}.</p>
-
-              <div className="mt-4 flex items-center gap-2">
-                <Button
-                  onClick={() => {
-                    if (periodDays.includes(isoDate)) {
-                      setPeriodDays(periodDays.filter(d => d !== isoDate));
-                    } else {
-                      setPeriodDays([...periodDays, isoDate]);
-                    }
-                    save();
-                  }}
-                >
-                  {periodDays.includes(isoDate) ? 'Unmark Period Day' : 'Mark Period Day'}
-                </Button>
-                <Button variant="outline" onClick={() => setJournalOpen(true)}>
-                  Open Journal
-                </Button>
+            {/* Perioden-Tracking Card */}
+            <div className="rounded-2xl bg-card p-6 shadow-card">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cycle-menstruation/20">
+                  <Droplets className="h-5 w-5 text-cycle-menstruation" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Perioden-Tracking</h3>
+                </div>
               </div>
 
-              <Dialog open={journalOpen} onOpenChange={setJournalOpen}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Journal — {isoDate}</DialogTitle>
-                  </DialogHeader>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="period-toggle" className="text-sm font-medium">Hast du heute deine Periode?</Label>
+                  <Switch
+                    id="period-toggle"
+                    checked={journal.hasPeriod}
+                    onCheckedChange={(checked) => {
+                      saveJournal({ hasPeriod: checked, flowIntensity: checked ? (journal.flowIntensity || 1) : 0 });
+                      if (checked && !periodDays.includes(isoDate)) {
+                        const newPeriodDays = [...periodDays, isoDate];
+                        setPeriodDays(newPeriodDays);
+                        localStorage.setItem('cw_periodDays', JSON.stringify(newPeriodDays));
+                      } else if (!checked && periodDays.includes(isoDate)) {
+                        const newPeriodDays = periodDays.filter(d => d !== isoDate);
+                        setPeriodDays(newPeriodDays);
+                        localStorage.setItem('cw_periodDays', JSON.stringify(newPeriodDays));
+                      }
+                    }}
+                  />
+                </div>
 
-                  <div className="space-y-4 mt-2">
-                    <div>
-                      <label className="text-sm font-medium">Quick Note</label>
-                      <Textarea value={journal.quickNote} onChange={(e) => saveJournal({ quickNote: e.target.value })} className="mt-2" />
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium">Trades</label>
-                      <div className="mt-2 space-y-2">
-                        {journal.trades.map(t => (
-                          <div key={t.id} className="flex items-center gap-2">
-                            <div className="text-sm">{t.instrument} ({t.direction})</div>
-                            <div className="text-xs text-muted-foreground">{t.strategy ?? ''}</div>
-                          </div>
+                {journal.hasPeriod && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Stärke der Blutung</Label>
+                      <div className="flex gap-2">
+                        {[
+                          { value: 1, label: "Leicht", color: "bg-red-200" },
+                          { value: 2, label: "Mittel", color: "bg-red-400" },
+                          { value: 3, label: "Stark", color: "bg-red-600" },
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            onClick={() => saveJournal({ flowIntensity: opt.value })}
+                            className={`flex-1 rounded-lg p-3 text-sm font-medium transition-all ${
+                              journal.flowIntensity === opt.value
+                                ? `${opt.color} text-white shadow-md`
+                                : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
                         ))}
-
-                        <TradeAdder onAdd={(t) => saveJournal({ trades: [...journal.trades, t] })} />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="text-sm font-medium">Mood</label>
-                      <input type="range" min={0} max={10} value={journal.mood} onChange={(e) => saveJournal({ mood: Number(e.target.value) })} className="w-full mt-2" />
-                      <div className="text-sm text-muted-foreground">{journal.mood}/10</div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span>🔥</span>
+                          <Label className="text-sm font-medium">Krämpfe</Label>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {journal.cramps === 0 ? "Keine" : journal.cramps <= 3 ? "Leicht" : journal.cramps <= 6 ? "Mittel" : "Stark"}
+                        </span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min={0} 
+                        max={10} 
+                        value={journal.cramps} 
+                        onChange={(e) => saveJournal({ cramps: Number(e.target.value) })} 
+                        className="w-full accent-cycle-menstruation" 
+                      />
                     </div>
+                  </>
+                )}
+              </div>
+            </div>
 
-                    <div>
-                      <label className="text-sm font-medium">Confidence</label>
-                      <input type="range" min={0} max={10} value={journal.confidence} onChange={(e) => saveJournal({ confidence: Number(e.target.value) })} className="w-full mt-2" />
-                      <div className="text-sm text-muted-foreground">{journal.confidence}/10</div>
+            {/* Trading-Mindset Card */}
+            <div className="rounded-2xl bg-card p-6 shadow-card">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cycle-ovulation/20">
+                  <Brain className="h-5 w-5 text-cycle-ovulation" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Trading-Mindset</h3>
+                  <p className="text-sm text-muted-foreground">Faktoren die dein Trading beeinflussen</p>
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                {/* Schlafqualität */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Moon className="h-4 w-4 text-indigo-500" />
+                      <Label className="text-sm font-medium">Schlafqualität</Label>
                     </div>
+                    <span className="text-sm font-medium">{journal.sleepQuality}/10</span>
+                  </div>
+                  <input type="range" min={0} max={10} value={journal.sleepQuality} onChange={(e) => saveJournal({ sleepQuality: Number(e.target.value) })} className="w-full accent-indigo-500" />
+                </div>
 
-                    <div>
-                      <label className="text-sm font-medium">Lessons</label>
-                      <Textarea value={journal.lessons} onChange={(e) => saveJournal({ lessons: e.target.value })} className="mt-2" />
+                {/* Energie */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-yellow-500" />
+                      <Label className="text-sm font-medium">Energie</Label>
+                    </div>
+                    <span className="text-sm font-medium">{journal.energy}/10</span>
+                  </div>
+                  <input type="range" min={0} max={10} value={journal.energy} onChange={(e) => saveJournal({ energy: Number(e.target.value) })} className="w-full accent-yellow-500" />
+                </div>
+
+                {/* Fokus */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-blue-500" />
+                      <Label className="text-sm font-medium">Fokus</Label>
+                    </div>
+                    <span className="text-sm font-medium">{journal.focus}/10</span>
+                  </div>
+                  <input type="range" min={0} max={10} value={journal.focus} onChange={(e) => saveJournal({ focus: Number(e.target.value) })} className="w-full accent-blue-500" />
+                </div>
+
+                {/* Stress */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <HeartPulse className="h-4 w-4 text-orange-500" />
+                      <Label className="text-sm font-medium">Stress</Label>
+                    </div>
+                    <span className="text-sm font-medium">{journal.stress}/10</span>
+                  </div>
+                  <input type="range" min={0} max={10} value={journal.stress} onChange={(e) => saveJournal({ stress: Number(e.target.value) })} className="w-full accent-orange-500" />
+                </div>
+
+                {/* Stimmung */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-pink-500" />
+                      <Label className="text-sm font-medium">Stimmung</Label>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {journal.mood <= 3 ? <Frown className="h-4 w-4 text-red-400" /> : journal.mood <= 6 ? <Meh className="h-4 w-4 text-yellow-500" /> : <Smile className="h-4 w-4 text-green-500" />}
+                      <span className="text-sm font-medium w-8 text-right">{journal.mood}/10</span>
                     </div>
                   </div>
+                  <input type="range" min={0} max={10} value={journal.mood} onChange={(e) => saveJournal({ mood: Number(e.target.value) })} className="w-full accent-pink-500" />
+                </div>
 
-                  <DialogFooter>
-                    <div className="flex gap-2 justify-end">
-                      <Button onClick={() => { setJournalOpen(false); }}>Close</Button>
+                {/* Selbstvertrauen */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Smile className="h-4 w-4 text-emerald-500" />
+                      <Label className="text-sm font-medium">Selbstvertrauen</Label>
                     </div>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                    <span className="text-sm font-medium">{journal.confidence}/10</span>
+                  </div>
+                  <input type="range" min={0} max={10} value={journal.confidence} onChange={(e) => saveJournal({ confidence: Number(e.target.value) })} className="w-full accent-emerald-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* Notizen Card */}
+            <div className="rounded-2xl bg-card p-6 shadow-card">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-foreground">📝 Trading-Notizen</h3>
+                <div className="text-xs text-muted-foreground">Auto-saves</div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Tagesnotiz</label>
+                  <Textarea 
+                    value={journal.quickNote} 
+                    onChange={(e) => saveJournal({ quickNote: e.target.value })} 
+                    placeholder="Wie hast du dich heute beim Traden gefühlt?"
+                    className="mt-2 min-h-[80px]" 
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Lektionen</label>
+                  <Textarea 
+                    value={journal.lessons} 
+                    onChange={(e) => saveJournal({ lessons: e.target.value })} 
+                    placeholder="Was hast du heute gelernt?"
+                    className="mt-2 min-h-[80px]" 
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -228,31 +445,4 @@ export default function Day() {
   );
 }
 
-// Small helper component to add a trade entry
-function TradeAdder({ onAdd }: { onAdd: (t: { id: string; instrument: string; direction: "long" | "short"; rMultiple?: number | null; pnl?: number | null; strategy?: string }) => void }) {
-  const [instrument, setInstrument] = useState("");
-  const [direction, setDirection] = useState<"long" | "short">("long");
-  const [strategy, setStrategy] = useState("");
-  const [rMultiple, setRMultiple] = useState<number | undefined>(undefined);
-  const [pnl, setPnl] = useState<number | undefined>(undefined);
-
-  return (
-    <div className="flex gap-2">
-      <Input placeholder="Instrument" value={instrument} onChange={(e) => setInstrument(e.target.value)} />
-      <select value={direction} onChange={(e) => setDirection(e.target.value as any)} className="rounded-md border px-2">
-        <option value="long">Long</option>
-        <option value="short">Short</option>
-      </select>
-      <Input placeholder="Strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)} />
-      <Input placeholder="R" type="number" value={rMultiple ?? ""} onChange={(e) => setRMultiple(e.target.value ? Number(e.target.value) : undefined)} className="w-20" />
-      <Input placeholder="P&L" type="number" value={pnl ?? ""} onChange={(e) => setPnl(e.target.value ? Number(e.target.value) : undefined)} className="w-24" />
-      <Button onClick={() => {
-        if (!instrument) return;
-        onAdd({ id: String(Date.now()) + Math.random().toString(36).slice(2,6), instrument, direction, rMultiple: rMultiple ?? null, pnl: pnl ?? null, strategy });
-        setInstrument(""); setStrategy(""); setRMultiple(undefined); setPnl(undefined);
-      }}>
-        <Plus className="h-4 w-4 mr-1" /> Add
-      </Button>
-    </div>
-  );
-}
+// TradeAdder removed — journal no longer collects trades inline

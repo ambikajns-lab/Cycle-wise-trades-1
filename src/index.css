@@ -56,6 +56,11 @@
     --gradient-mint: linear-gradient(135deg, hsl(160 45% 80%) 0%, hsl(140 40% 85%) 100%);
     --gradient-sunset: linear-gradient(135deg, hsl(345 60% 70%) 0%, hsl(35 70% 75%) 100%);
     --gradient-hero: linear-gradient(145deg, hsl(345 55% 96%) 0%, hsl(270 35% 95%) 50%, hsl(160 40% 94%) 100%);
+    
+    /* Chart Colors */
+    --chart-1: 160 45% 60%;
+    --chart-2: 0 65% 60%;
+    --chart-3: 340 15% 60%;
 
     /* Shadows */
     --shadow-soft: 0 4px 20px -4px hsl(345 40% 50% / 0.15);
@@ -100,6 +105,14 @@
     --border: 340 15% 20%;
     --input: 340 15% 20%;
     --ring: 345 55% 65%;
+    
+    /* Dark mode gradients */
+    --gradient-hero: linear-gradient(145deg, hsl(340 20% 10%) 0%, hsl(270 20% 12%) 50%, hsl(160 15% 10%) 100%);
+    
+    /* Chart Colors */
+    --chart-1: 160 45% 50%;
+    --chart-2: 0 65% 55%;
+    --chart-3: 340 15% 50%;
 
     --sidebar-background: 340 18% 10%;
     --sidebar-foreground: 30 20% 90%;

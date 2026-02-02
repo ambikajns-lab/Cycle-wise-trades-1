@@ -11,11 +11,17 @@ import Dashboard from "./pages/Dashboard";
 import TradeJournal from "./pages/TradeJournal";
 import CycleTracker from "./pages/CycleTracker";
 import Day from "./pages/Day";
+import NewTrade from "./pages/NewTrade";
 import Strategies from "./pages/Strategies";
+import StrategyList from "./pages/strategies/StrategyList";
+import StrategyEdit from "./pages/strategies/StrategyEdit";
 import Challenges from "./pages/Challenges";
 import AIInsights from "./pages/AIInsights";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Statistics from "./pages/Statistics";
+import PropFirmAccounts from "./pages/PropFirmAccounts";
+import PropFirmCompare from "./pages/PropFirmCompare";
 
 // ⭐ NEU: Login & Register importieren
 import Login from "./pages/Login";
@@ -53,11 +59,18 @@ const AppContent = () => {
 
         {/* Other Pages */}
         <Route path="/journal" element={<TradeJournal />} />
+        <Route path="/trade/new" element={<NewTrade />} />
         <Route path="/cycle" element={<CycleTracker />} />
         <Route path="/day/:day" element={<Day />} />
         <Route path="/strategies" element={<Strategies />} />
+        <Route path="/strategies/list" element={<StrategyList />} />
+        <Route path="/strategies/new" element={<StrategyEdit />} />
+        <Route path="/strategies/edit/:name" element={<StrategyEdit />} />
         <Route path="/challenges" element={<Challenges />} />
         <Route path="/insights" element={<AIInsights />} />
+        <Route path="/statistics" element={<Statistics />} />
+        <Route path="/prop-firms" element={<PropFirmAccounts />} />
+        <Route path="/propfirm-compare" element={<PropFirmCompare />} />
         <Route path="/settings" element={<Settings />} />
 
         <Route path="/welcome" element={<Welcome />} />

@@ -4,7 +4,13 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 interface QuickTradeEntryProps {
-  onNewTrade: () => void;
+  onNewTrade: (trade: {
+    instrument: string;
+    direction: "long" | "short";
+    rMultiple?: number | null;
+    pnl?: number | null;
+    strategy?: string;
+  }) => void;
   safetyModeEnabled: boolean;
 }
 
@@ -72,7 +78,10 @@ export function QuickTradeEntry({ onNewTrade, safetyModeEnabled }: QuickTradeEnt
       </div>
 
       <Button
-        onClick={onNewTrade}
+        onClick={() => {
+          if (!direction) return;
+          onNewTrade({ instrument: "Unknown", direction, rMultiple: null, pnl: null, strategy: "" });
+        }}
         variant="hero"
         size="lg"
         className="mt-5 w-full"
