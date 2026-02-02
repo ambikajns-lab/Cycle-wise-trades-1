@@ -54,24 +54,24 @@ const AppContent = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/profile" element={<Profile />} />
 
-        {/* Dashboard */}
-        <Route path="/dashboard" element={<Dashboard />} />
+        {/* Dashboard (Protected) */}
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
-        {/* Other Pages */}
-        <Route path="/journal" element={<TradeJournal />} />
-        <Route path="/trade/new" element={<NewTrade />} />
-        <Route path="/cycle" element={<CycleTracker />} />
-        <Route path="/day/:day" element={<Day />} />
-        <Route path="/strategies" element={<Strategies />} />
-        <Route path="/strategies/list" element={<StrategyList />} />
-        <Route path="/strategies/new" element={<StrategyEdit />} />
-        <Route path="/strategies/edit/:name" element={<StrategyEdit />} />
-        <Route path="/challenges" element={<Challenges />} />
-        <Route path="/insights" element={<AIInsights />} />
-        <Route path="/statistics" element={<Statistics />} />
-        <Route path="/prop-firms" element={<PropFirmAccounts />} />
-        <Route path="/propfirm-compare" element={<PropFirmCompare />} />
-        <Route path="/settings" element={<Settings />} />
+        {/* Other Pages (Protected) */}
+        <Route path="/journal" element={<ProtectedRoute><TradeJournal /></ProtectedRoute>} />
+        <Route path="/trade/new" element={<ProtectedRoute><NewTrade /></ProtectedRoute>} />
+        <Route path="/cycle" element={<ProtectedRoute><CycleTracker /></ProtectedRoute>} />
+        <Route path="/day/:day" element={<ProtectedRoute><Day /></ProtectedRoute>} />
+        <Route path="/strategies" element={<ProtectedRoute><Strategies /></ProtectedRoute>} />
+        <Route path="/strategies/list" element={<ProtectedRoute><StrategyList /></ProtectedRoute>} />
+        <Route path="/strategies/new" element={<ProtectedRoute><StrategyEdit /></ProtectedRoute>} />
+        <Route path="/strategies/edit/:name" element={<ProtectedRoute><StrategyEdit /></ProtectedRoute>} />
+        <Route path="/challenges" element={<ProtectedRoute><Challenges /></ProtectedRoute>} />
+        <Route path="/insights" element={<ProtectedRoute><AIInsights /></ProtectedRoute>} />
+        <Route path="/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
+        <Route path="/prop-firms" element={<ProtectedRoute><PropFirmAccounts /></ProtectedRoute>} />
+        <Route path="/propfirm-compare" element={<ProtectedRoute><PropFirmCompare /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
         <Route path="/welcome" element={<Welcome />} />
         {/* 404 */}

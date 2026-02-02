@@ -17,6 +17,19 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // If already signed in, redirect to /dashboard
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      if (data.session) {
+        navigate('/dashboard');
+      }
+    })();
+    return () => { mounted = false; };
+  }, [navigate]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-hero p-6">
       <motion.div
