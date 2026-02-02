@@ -77,12 +77,15 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+Recommended: use Vercel for Preview and Production deployments.
 
-## Can I connect a custom domain to my Lovable project?
+- Import the repository into Vercel (select the **Vite** preset if available).
+- Build command: `npm run build`
+- Output directory: `dist`
+- Add required environment variables in the Vercel project settings (see `.github/copilot-instructions.md`).
 
-Yes, you can!
+## Can I connect a custom domain?
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Yes — Vercel supports custom domains. In the Vercel dashboard: Project → Settings → Domains → Add.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Read more here: [Vercel Domains](https://vercel.com/docs/custom-domains)
