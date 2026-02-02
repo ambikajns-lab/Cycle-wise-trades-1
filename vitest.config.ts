@@ -7,7 +7,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: ["./src/test/setup.ts"],
+    // Use an absolute path to avoid issues when running tests from a different CWD
+    setupFiles: [path.resolve(__dirname, "./src/test/setup.ts")],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
   resolve: {
